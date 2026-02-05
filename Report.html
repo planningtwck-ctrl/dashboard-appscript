@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <base target="_top" />
+  <title>A4 Report</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *{ box-sizing:border-box }
+    body{ font-family:Inter,Arial,sans-serif; margin:0; background:#f6f7fb; color:#1f2937 }
+    .toolbar{ position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; background:#fff; border-bottom:1px solid #e5e7eb }
+    .btn{ font-size:14px; padding:6px 10px; border:1px solid #d1d5db; background:#fff; border-radius:6px; cursor:pointer }
+    .chip{ background:#eef2ff; border:1px solid #c7d2fe; padding:4px 8px; border-radius:6px }
+    .ms{ position:relative; min-width:220px }
+    .ms-toggle{ width:100%; display:flex; align-items:center; justify-content:space-between }
+    .ms-panel{ position:absolute; top:calc(100% + 4px); left:0; width:340px; max-height:360px; overflow:auto; background:#fff; border:1px solid #e5e7eb; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.08); display:none; z-index:30 }
+    .ms.open .ms-panel{ display:block }
+    .ms-head{ display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:1 }
+    .ms-search{ width:100%; padding:6px 8px; border:1px solid #e5e7eb; border-radius:6px }
+    .ms-item{ display:flex; align-items:center; gap:8px; justify-content:space-between; padding:8px 10px; border-bottom:1px dashed #f1f5f9 }
+    .ms-left{ display:flex; align-items:center; gap:8px }
+    .ms-count{ color:#6b7280; font-size:12px }
+    .only{ font-size:12px; padding:4px 8px; border:1px solid #e5e7eb; border-radius:4px; background:#f9fafb; cursor:pointer }
+    .container{ padding:10px }
+    .page{ width:297mm; min-height:210mm; margin:10mm auto; padding:10mm; background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.06) }
+    .title{ font-size:16px; font-weight:600; margin-bottom:8px }
+    .subtitle{ color:#6b7280; font-size:12px; margin-bottom:10px }
+    table{ width:100%; border-collapse:collapse; font-size:12px }
+    th,td{ border:1px solid #e5e7eb; padding:4px 6px; vertical-align:top; word-break:break-word }
+    th{ background:#f3f4f6; text-align:left }
+    .right{ text-align:right }
+    @media print{
+      .toolbar{ display:none }
+      body{ background:#fff }
+      .page{ box-shadow:none; page-break-after:auto; margin:0; width:auto; min-height:auto; padding:0 }
+      table{ page-break-inside:auto }
+      thead{ display:table-header-group }
+      tfoot{ display:table-footer-group }
+      tr{ page-break-inside:avoid; break-inside:avoid }
+      @page{ size:A4 landscape; margin:10mm }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <span class="chip">A4 Report</span>
+
+    <div id="ms-dept" class="ms"></div>
+    <div id="ms-res"  class="ms"></div>
+    <div id="ms-sta"  class="ms"></div>
+    <div id="ms-typ"  class="ms"></div>
+    <div id="ms-cols" class="ms"></div>
+
+    <button class="btn" onclick="loadReport()">แสดง</button>
+    <button class="btn" onclick="printReport()">🖨️ พิมพ์</button>
+
+    <span id="info" style="margin-left:auto;color:#6b7280;font-size:12px;"></span>
+  </div>
+
+  <div class="container" id="container">
+    <div class="page"><div class="title">กำลังโหลดข้อมูล…</div></div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    // ✅ date format แน่นอน
+    const fmtDate = ms => (ms ? new Date(ms).toLocaleString('th-TH', { hour12:false }) : '');
+
+    function fmtDuration(v){
+      if (v === null || v === undefined || v === '') return '';
+      if (typeof v === 'number'){
+        if (v > 1e9) return fmtDate(v);
+        const total = Math.max(0, Math.floor(v));
+        const d = Math.floor(total / 1440), h = Math.floor((total % 1440) / 60), m = total % 60;
+        return `${d?d+' วัน ':''}${h?h+' ชม. ':''}${m} นาที`;
+      }
+      const n = Number(v);
+      if (!Number.isNaN(n) && n > 1e9) return fmtDate(n);
+      return String(v);
+    }
+
+    function sortByTypePriority(rows){
+      const priority = { 'แบบจ่ายงาน':0, 'แก้ไขแบบจ่ายงาน':1 };
+      return [...(rows||[])].sort((a,b)=>{
+        const pa = priority[a.Type] ?? 99, pb = priority[b.Type] ?? 99;
+        if (pa !== pb) return pa - pb;
+        const an = Number(a.Barcode), bn = Number(b.Barcode);
+        if (!Number.isNaN(an) && !Number.isNaN(bn)) return bn - an;
+        return String(b.Barcode||'').localeCompare(String(a.Barcode||''), 'th');
+      });
+    }
+
+    function normalizeRows(cols, rawRows){
+      return (rawRows||[]).map(row=>{
+        const o = {...row};
+        if ('Timestamp'    in o) o.Timestamp    = fmtDate(o.Timestamp);
+        if ('TimeFinish'   in o) o.TimeFinish   = fmtDate(o.TimeFinish);
+        if ('CurrentStart' in o) o.CurrentStart = fmtDate(o.CurrentStart);
+        if ('Duration'     in o) o.Duration     = fmtDuration(o.Duration);
+        return o;
+      });
+    }
+
+    function pxPerMm(){
+      const d = document.createElement('div');
+      d.style.width='100mm'; d.style.position='absolute'; d.style.visibility='hidden';
+      document.body.appendChild(d);
+      const px = d.getBoundingClientRect().width / 100;
+      d.remove();
+      return px;
+    }
+
+    function rowsPerA4Landscape(exampleRowHeightPx, headerBlockHeightPx){
+      const pxmm = pxPerMm();
+      const usableHeight = (210 - 20) * pxmm; // A4 landscape height 210mm - margin 20mm
+      const bodyHeight = usableHeight - headerBlockHeightPx;
+      return Math.max(1, Math.floor(bodyHeight / exampleRowHeightPx));
+    }
+
+    // ===== MultiSelect =====
+    function MultiSelect(root, {label, items=[], selected=[], onChange}){
+      const st = { items, selected:new Set(selected), keyword:'' };
+      const wrap  = document.createElement('div'); wrap.className='ms';
+      const btn   = document.createElement('button'); btn.className='btn ms-toggle';
+      const lab   = document.createElement('span');
+      const caret = document.createElement('span'); caret.textContent='▾';
+      btn.append(lab, caret);
+
+      const panel = document.createElement('div'); panel.className='ms-panel';
+      const head  = document.createElement('div'); head.className='ms-head';
+      const search= document.createElement('input'); search.className='ms-search'; search.placeholder='Type to search';
+      const clear = document.createElement('button'); clear.className='btn'; clear.textContent='Clear';
+      const all   = document.createElement('button'); all.className='btn'; all.textContent='Select all';
+      head.append(search, clear, all);
+
+      const list  = document.createElement('div');
+      panel.append(head, list);
+      wrap.append(btn, panel);
+      root.innerHTML='';
+      root.append(wrap);
+
+      const renderToggle = () => lab.textContent = st.selected.size ? `${label} (${st.selected.size})` : label;
+      const filtered = () => st.items.filter(it => (it.value||'').toLowerCase().includes(st.keyword.toLowerCase()));
+
+      function renderList(){
+        list.innerHTML='';
+        filtered().forEach(it=>{
+          const row = document.createElement('div'); row.className='ms-item';
+          const left = document.createElement('div'); left.className='ms-left';
+          const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = st.selected.has(it.value);
+          const txt = document.createElement('span'); txt.textContent = it.value || '(blank)';
+          const ct = document.createElement('span'); ct.className='ms-count'; ct.textContent = it.count?.toLocaleString?.('en-US') ?? '';
+          left.append(cb, txt); row.append(left, ct);
+
+          const only = document.createElement('button'); only.className='only'; only.textContent='ONLY';
+          row.append(only);
+
+          cb.addEventListener('change', ()=>{
+            cb.checked ? st.selected.add(it.value) : st.selected.delete(it.value);
+            renderToggle();
+            onChange([...st.selected]);
+          });
+          only.addEventListener('click', ()=>{
+            st.selected = new Set([it.value]);
+            renderToggle();
+            onChange([...st.selected]);
+            renderList();
+          });
+
+          list.append(row);
+        });
+      }
+
+      btn.addEventListener('click', ()=> wrap.classList.toggle('open'));
+      document.addEventListener('click', e=>{ if (!wrap.contains(e.target)) wrap.classList.remove('open'); });
+      search.addEventListener('input', ()=>{ st.keyword = search.value; renderList(); });
+      clear.addEventListener('click', ()=>{ st.selected.clear(); renderToggle(); onChange([...st.selected]); renderList(); });
+      all.addEventListener('click', ()=>{ st.selected = new Set(st.items.map(i=>i.value)); renderToggle(); onChange([...st.selected]); renderList(); });
+
+      renderToggle();
+      renderList();
+
+      return {
+        setItems(newItems){ st.items = newItems||[]; renderList(); },
+        setSelected(arr){ st.selected = new Set(arr||[]); renderToggle(); renderList(); },
+        getSelected(){ return [...st.selected]; }
+      };
+    }
+
+    // ===== App State =====
+    const state = { columns:[], ms:{ dept:null, res:null, sta:null, typ:null, cols:null } };
+
+    // ✅ init เดียวพอ
+    google.script.run.withSuccessHandler(appInit).getReportFilterOptions();
+
+    function appInit(opts){
+      const DONE_WORDS = new Set(['เสร็จแล้ว','เสร็จสิ้น','เสร็จงาน']);
+      const defaultStatuses = (opts.statuses || []).filter(s => !DONE_WORDS.has(String(s||'').trim()));
+
+      state.ms.dept = MultiSelect($('ms-dept'), { label:'Department',
+        items:(opts.departments||[]).map(v=>({value:v})),
+        selected:opts.departments,
+        onChange:onFacetChanged
+      });
+
+      state.ms.res  = MultiSelect($('ms-res'),  { label:'Resource',
+        items:(opts.resources||[]).map(v=>({value:v})),
+        selected:opts.resources,
+        onChange:onFacetChanged
+      });
+
+      state.ms.sta  = MultiSelect($('ms-sta'),  { label:'Status',
+        items:(opts.statuses||[]).map(v=>({value:v})),
+        selected:defaultStatuses,
+        onChange:onFacetChanged
+      });
+
+      state.ms.typ  = MultiSelect($('ms-typ'),  { label:'Type',
+        items:(opts.types||[]).map(v=>({value:v})),
+        selected:opts.types,
+        onChange:onFacetChanged
+      });
+
+      // ✅ Columns: items = allColumns (เลือกได้ทุกคอลัมน์)
+      state.ms.cols = MultiSelect($('ms-cols'), { label:'Columns',
+        items:(opts.allColumns || opts.defaultColumns || []).map(v=>({value:v})),
+        selected:opts.defaultColumns || [],
+        onChange:v=>{ state.columns=v; }
+      });
+
+      state.columns = opts.defaultColumns || [];
+      refreshFacets();
+      loadReport();
+    }
+
+    function onFacetChanged(){ refreshFacets(); }
+
+    function refreshFacets(){
+      const params = {
+        departments: state.ms.dept.getSelected(),
+        resources:   state.ms.res.getSelected(),
+        statuses:    state.ms.sta.getSelected(),
+        types:       state.ms.typ.getSelected()
+      };
+      google.script.run.withSuccessHandler(updateFacetCounts).getReportFacets(params);
+    }
+
+    function updateFacetCounts(data){
+      if (data.departments) state.ms.dept.setItems(data.departments.map(x=>({value:x.value, count:x.count})));
+      if (data.resources)   state.ms.res.setItems(data.resources.map(x=>({value:x.value, count:x.count})));
+      if (data.statuses)    state.ms.sta.setItems(data.statuses.map(x=>({value:x.value, count:x.count})));
+      if (data.types)       state.ms.typ.setItems(data.types.map(x=>({value:x.value, count:x.count})));
+
+      // รักษาค่าที่เลือกไว้
+      state.ms.dept.setSelected(state.ms.dept.getSelected());
+      state.ms.res.setSelected(state.ms.res.getSelected());
+      state.ms.sta.setSelected(state.ms.sta.getSelected());
+      state.ms.typ.setSelected(state.ms.typ.getSelected());
+      state.ms.cols.setSelected(state.columns);
+    }
+
+    function loadReport(){
+      const params = {
+        departments: state.ms.dept.getSelected(),
+        resources:   state.ms.res.getSelected(),
+        statuses:    state.ms.sta.getSelected(),
+        types:       state.ms.typ.getSelected(),
+        columns:     state.ms.cols.getSelected()
+      };
+
+      $('container').innerHTML = `<div class="page"><div class="title">กำลังโหลดข้อมูล…</div></div>`;
+      google.script.run.withSuccessHandler(renderReport).getReportRows(params);
+    }
+
+    function renderReport(result){
+      const cols = result.columns || [];
+      const rows = normalizeRows(cols, result.rows);
+      const sortedRows = sortByTypePriority(rows);
+
+      // probe เพื่อคำนวน perPage
+      const probe = document.createElement('div');
+      probe.className='page';
+      probe.style.visibility='hidden';
+      probe.innerHTML = `
+        <div class="title">probe</div>
+        <div class="subtitle">probe</div>
+        <table>
+          <thead><tr><th class="right">#</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+          <tbody><tr><td class="right">1</td>${cols.map(()=>`<td>ก</td>`).join('')}</tr></tbody>
+        </table>`;
+      document.body.appendChild(probe);
+
+      const headH = probe.querySelector('.title').getBoundingClientRect().height
+                  + probe.querySelector('.subtitle').getBoundingClientRect().height
+                  + probe.querySelector('thead').getBoundingClientRect().height + 12;
+      const rowH  = probe.querySelector('tbody tr').getBoundingClientRect().height || 18;
+      probe.remove();
+
+      const perPage = rowsPerA4Landscape(rowH, headH);
+
+      const pages = [];
+      for (let i=0; i<sortedRows.length; i+=perPage) pages.push(sortedRows.slice(i, i+perPage));
+
+      const container = $('container');
+      container.innerHTML='';
+
+      pages.forEach((list, pi)=>{
+        const page = document.createElement('div');
+        page.className = 'page';
+        page.innerHTML = `
+          <div class="title">รายงานงาน (หน้า ${pi+1}/${pages.length})</div>
+          <div class="subtitle">
+            Dept=[${state.ms.dept.getSelected().join(', ')}] |
+            Resource=[${state.ms.res.getSelected().join(', ')}] |
+            Status=[${state.ms.sta.getSelected().join(', ')}] |
+            Type=[${state.ms.typ.getSelected().join(', ')}] |
+            Rows=${sortedRows.length} | Per page=${perPage}
+          </div>
+          <table>
+            <thead>
+              <tr><th class="right">#</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${list.map((r,i)=>`
+                <tr>
+                  <td class="right">${i+1 + pi*perPage}</td>
+                  ${cols.map(c=>`<td>${r[c] ?? ''}</td>`).join('')}
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+        container.appendChild(page);
+      });
+
+      $('info').textContent = `แถวทั้งหมด: ${sortedRows.length} | หน้า (ดูบนจอ): ${pages.length} | ต่อหน้าโดยประมาณ: ${perPage}`;
+    }
+
+    function oneTableHTML(title, subtitle, cols, rows){
+      return `
+        <div class="page">
+          <div class="title">${title}</div>
+          <div class="subtitle">${subtitle}</div>
+          <table>
+            <thead>
+              <tr><th class="right">#</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${rows.map((r,i)=>`
+                <tr>
+                  <td class="right">${i+1}</td>
+                  ${cols.map(c=>`<td>${r[c] ?? ''}</td>`).join('')}
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function printReport(){
+      const params = {
+        departments: state.ms.dept.getSelected(),
+        resources:   state.ms.res.getSelected(),
+        statuses:    state.ms.sta.getSelected(),
+        types:       state.ms.typ.getSelected(),
+        columns:     state.ms.cols.getSelected()
+      };
+
+      google.script.run.withSuccessHandler(result=>{
+        const cols = result.columns || [];
+        const rows = sortByTypePriority(normalizeRows(cols, result.rows));
+
+        const title = 'A4 Report';
+        const subtitle =
+          `Dept=[${state.ms.dept.getSelected().join(', ')}] | ` +
+          `Resource=[${state.ms.res.getSelected().join(', ')}] | ` +
+          `Status=[${state.ms.sta.getSelected().join(', ')}] | ` +
+          `Type=[${state.ms.typ.getSelected().join(', ')}] | ` +
+          `Rows=${rows.length}`;
+
+        const container = $('container');
+        const backup = container.innerHTML;
+        container.innerHTML = oneTableHTML(title, subtitle, cols, rows);
+
+        window.print();
+        container.innerHTML = backup;
+      }).getReportRows(params);
+    }
+  </script>
+</body>
+</html>

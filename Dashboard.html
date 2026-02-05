@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>📊 สถานะงาน ENG / DS / CAM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    ul, li { list-style:none; margin:0; padding:0; }
+    :root{
+      --primary-blue:#2196f3; --dark-blue:#1976d2;
+      --light-gray:#f5f7fa;  --medium-gray:#e0e6ed;
+      --text-color:#4a5568;  --card-bg:#ffffff;
+      --col-min-width:250px;
+      --available-green:#22c55e; --available-bg:#f0fdf4; --available-border:#bbf7d0;
+      --stop-red:#ef4444; --stop-bg:#ffebee; --stop-border:#fca5a5;
+    }
+    body{ font-family:'Inter',sans-serif; background:var(--light-gray); color:var(--text-color);
+      margin:0; padding:8px; display:flex; flex-direction:column; align-items:center; width:100%; min-height:100vh; }
+    .header{ width:100%; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center;
+      border-bottom:1px solid var(--medium-gray); margin-bottom:8px; padding-bottom:8px; gap:8px; }
+    .header h2{ font-size:1.8em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .filters{ display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; flex-grow:1; align-items:center; }
+    .filters select, .filters button{ font-size:14px; padding:6px 12px; min-width:120px; }
+
+    .dashboard-container{ display:grid; grid-template-columns:repeat(auto-fit, minmax(var(--col-min-width),1fr)); gap:10px; width:100%; }
+    .department-column{ background:#fff; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,.08); padding:10px; display:flex; flex-direction:column; min-width:var(--col-min-width); }
+    .department-column h3{ text-align:center; color:var(--primary-blue); font-size:1.3em; font-weight:600; margin:0 0 8px; }
+    .resource-box{ background:#f5f7fa; border-radius:8px; padding:5px; margin-bottom:5px; display:flex; flex-direction:column; max-height:900px; overflow-y:auto; }
+    .resource-box h4{ color:#1976d2; font-size:.95em; font-weight:500; margin:0 0 5px; }
+    .resource-box ul li{ margin:0 0 6px; border:1px solid var(--medium-gray); border-radius:6px; background:#fff; overflow:hidden; }
+    .job-header{ padding:8px 12px; font-size:.9em; }
+    .status-completed{ background:#eff6ff!important; border-color:#93c5fd; }
+    .hold-job .job-header{ background:#fffde7; border-left:4px solid #facc15; }
+    .pending-inspect .job-header{ background:#fff7ed; border-left:4px solid #fdba74; }
+
+    .badge.badge-urgent{
+      display:inline-block; font-size:.72em; font-weight:700; padding:2px 6px; border-radius:999px;
+      background:#ffe5e5; color:#b91c1c; border:1px solid #fecaca; vertical-align:middle; margin-left:6px;
+    }
+
+    .status-available, .status-out-of-service{ text-align:center; padding:8px!important; font-weight:600;
+      cursor:pointer; border-radius:6px; border:1px solid var(--available-border); }
+    .status-available{ background:var(--available-bg); color:var(--available-green); border-color:var(--available-border); }
+    .status-out-of-service{ background:var(--stop-bg); color:var(--stop-red); border-color:var(--stop-border); }
+
+    #loadingSpinner{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); justify-content:center;
+      align-items:center; z-index:1000; color:#fff; font-size:20px; gap:15px; flex-direction:column; }
+    #loadingSpinner::before{ content:""; border:3px solid rgba(255,255,255,.3); border-top:3px solid #fff;
+      border-radius:50%; width:30px; height:30px; animation:spin 1s linear infinite; }
+    @keyframes spin{ 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+
+    /* Modal */
+    #startJobModal{ display:none; position:fixed; inset:0; z-index:1100; background:rgba(0,0,0,.45);
+      align-items:center; justify-content:center; }
+    #startJobModal .card{ background:#fff; padding:16px; border-radius:10px; min-width:280px; max-width:90vw; }
+
+    /* Search Modal */
+    #searchModal{ display:none; position:fixed; inset:0; z-index:1200; background:rgba(0,0,0,.45);
+      align-items:center; justify-content:center; }
+    #searchModal .card{ background:#fff; padding:16px; border-radius:10px; min-width:300px; max-width:90vw; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>📊 สถานะงาน ENG / DS / CAM</h2>
+    <div class="filters">
+      <select id="deptFilter" onchange="refresh()">
+        <option value="ALL">แสดงทุกแผนก</option>
+        <option value="ENG">ENG</option>
+        <option value="DS">DS</option>
+        <option value="CAM">CAM</option>
+        <option value="ENG_QUEUED">ENG รอคิว</option>
+        <option value="DS_QUEUED">DS รอคิว</option>
+        <option value="CAM_QUEUED">CAM รอคิว</option>
+        <option value="COMPLETED">งานที่เพิ่งเสร็จสิ้น</option>
+        <option value="ALL_QUEUED">งานรอคิวทั้งหมด</option>
+      </select>
+      <button onclick="refresh()">🔄 Refresh</button>
+      <button onclick="openReport()">📈 Report</button>
+      <button onclick="openSearchDialog()">🔎 ค้นหา</button>
+      <button onclick="openDesign()">🎨 Design</button>
+      <span id="lastUpdated" style="font-size:.8em;color:#334155"></span>
+    </div>
+  </div>
+
+  <div style="margin-bottom:10px;text-align:center;width:100%;">
+    <label>📐 ขนาดกล่องแสดงผล (px):</label>
+    <input type="range" min="200" max="600" value="250"
+      oninput="document.documentElement.style.setProperty('--col-min-width', `${this.value}px`);
+               document.getElementById('colWidthLabel').textContent = `${this.value}px`;" />
+    <span id="colWidthLabel">250px</span>
+  </div>
+
+  <div class="dashboard-container" id="dashboardContainer"><div>กำลังโหลด...</div></div>
+  <div id="loadingSpinner"><span>⏳ กำลังโหลดข้อมูล...</span></div>
+
+  <!-- Modal เริ่มงาน: เลือกทรัพยากร -->
+  <div id="startJobModal">
+    <div class="card">
+      <h3 style="margin:0 0 10px;">▶ เริ่มงาน — เลือกทรัพยากร</h3>
+      <label for="resourceSelect" style="font-size:.9em;color:#475569;">ทรัพยากร:</label>
+      <select id="resourceSelect" style="width:100%; padding:6px 8px; margin:6px 0 14px;"></select>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="cancelStartJob()">ยกเลิก</button>
+        <button onclick="confirmStartJob()">✅ ยืนยันเริ่มงาน</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal ค้นหา Barcode -->
+  <div id="searchModal">
+    <div class="card">
+      <h3 style="margin:0 0 10px;">🔎 ค้นหาสถานะงานด้วย Barcode</h3>
+    <div style="display:flex; gap:8px;">
+        <input id="searchBarcodeInput" type="text" placeholder="กรอก Barcode เช่น 1-6807076A"
+               style="flex:1; padding:8px 10px;" />
+        <button onclick="doBarcodeSearch()">ค้นหา</button>
+      </div>
+      <div id="searchResult" style="margin-top:12px; font-size:16px;"></div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button onclick="closeSearchDialog()">ปิด</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // เปิดหน้า Report ของ Web App เดียวกัน (ใช้พารามิเตอร์ view=report)
+  function openReport(){
+    google.script.run.withSuccessHandler(function(baseUrl){
+      const url = baseUrl.replace(/\/dev$/,'/exec') + '?view=report';
+      window.open(url, '_blank', 'noopener');
+    }).getWebAppUrl();
+  }
+
+  const REFRESH_INTERVAL_SECONDS = 30;
+  let refreshIntervalId;
+  const $spinner = () => document.getElementById('loadingSpinner');
+
+  // รายชื่อทรัพยากรสำหรับฟอร์มเริ่มงาน
+  const RESOURCE_CHOICES = {
+    "DS":  ["DS1(Deer)","DS2(Deam)","DS3(Biw)","DS4(Ming)","DS5(Jay)","DS6(Moss)","DS7(Boll)","DS8(Team)","DS9(Night)","DS10(Peet)"],
+    "CAM": ["CAM1(Boy)","CAM2(Jit)","CAM3"],
+    "ENG": ["EN1(Wat)","EN2(Neung)","EN3(Boom)","EN4(Jay)","EN5(PAT)","EN6(KAMPHOL)","EN7(ART)","EN8(-)"]
+  };
+
+  function getJobPriorityRank(job) {
+    if ((job.customClass || '').includes('priority-extreme-urgent') || job.priority === 'urgent') return 0;
+    if (job.status === 'ล่าช้า') return 1;
+    return 2;
+  }
+
+  function getQueuedJobsForDepartment(deptData, deptName) {
+    const queued = [];
+    if (deptData && deptData[deptName]) {
+      Object.values(deptData[deptName]).flat().forEach(j => {
+        if (['รอคิว','ล่าช้า','กรุณารีบเร่งงาน'].includes(j.status)) queued.push(j);
+      });
+    }
+    return queued;
+  }
+
+  // ===== ปุ่มควบคุมพื้นฐาน =====
+  function uiHold(barcode) {
+    const reason = prompt("สาเหตุหยุด (รออุปกรณ์ลูกค้า/งานแรก/รออนุมัติ/ตรวจไม่ผ่าน):","");
+    if (reason === null || reason.trim() === "") return;
+    $spinner().style.display = 'flex';
+    google.script.run.withSuccessHandler(() => { refresh(true); $spinner().style.display = 'none'; })
+      .withFailureHandler(e => { alert('หยุดงานไม่สำเร็จ: ' + e.message); $spinner().style.display = 'none'; })
+      .holdJob(barcode, reason.trim());
+  }
+  function uiResume(barcode) {
+    $spinner().style.display = 'flex';
+    google.script.run.withSuccessHandler(() => { refresh(true); $spinner().style.display = 'none'; })
+      .withFailureHandler(e => { alert('เริ่มงานต่อไม่สำเร็จ: ' + e.message); $spinner().style.display = 'none'; })
+      .resumeJob(barcode);
+  }
+  function uiSendToInspect(barcode) {
+    if (!confirm(`ยืนยัน "ส่งตรวจ" สำหรับ ${barcode} ?`)) return;
+    $spinner().style.display = 'flex';
+    google.script.run.withSuccessHandler(() => { refresh(true); $spinner().style.display = 'none'; })
+      .withFailureHandler(e => { alert('ส่งตรวจไม่สำเร็จ: ' + e.message); $spinner().style.display = 'none'; })
+      .sendToInspect(barcode);
+  }
+  function uiSendToSale(barcode) {
+    if (!confirm(`ยืนยัน "ส่งให้ Sale" สำหรับ ${barcode} ?`)) return;
+    $spinner().style.display = 'flex';
+    google.script.run.withSuccessHandler(() => { refresh(true); $spinner().style.display = 'none'; })
+      .withFailureHandler(e => { alert('ส่งให้ Sale ไม่สำเร็จ: ' + e.message); $spinner().style.display = 'none'; })
+      .sendToSales(barcode);
+  }
+  function uiSendToCAM(barcode) {
+    if (!confirm(`ยืนยัน "ส่งให้ CAM" สำหรับ ${barcode} ?`)) return;
+    $spinner().style.display = 'flex';
+    google.script.run.withSuccessHandler(() => { refresh(true); $spinner().style.display = 'none'; })
+      .withFailureHandler(e => { alert('ส่งให้ CAM ไม่สำเร็จ: ' + e.message); $spinner().style.display = 'none'; })
+      .sendToCAM(barcode);
+  }
+  function uiSendToPRD(barcode) {
+    if (!confirm(`ยืนยัน "ส่งให้ PRD" สำหรับ ${barcode} ?`)) return;
+    $spinner().style.display = 'flex';
+    google.script.run.withSuccessHandler(() => { refresh(true); $spinner().style.display = 'none'; })
+      .withFailureHandler(e => { alert('ส่งให้ PRD ไม่สำเร็จ: ' + e.message); $spinner().style.display = 'none'; })
+      .sendToPRD(barcode);
+  }
+
+  // ===== Modal เริ่มงานแบบเลือกทรัพยากร =====
+  let START_BARCODE = null, START_DEPT = null;
+  function showStartJobForm(barcode, dept) {
+    START_BARCODE = barcode; START_DEPT = dept;
+    const sel = document.getElementById('resourceSelect'); sel.innerHTML = '';
+    (RESOURCE_CHOICES[dept] || []).forEach(name => {
+      const opt = document.createElement('option'); opt.value = name; opt.textContent = name; sel.appendChild(opt);
+    });
+    document.getElementById('startJobModal').style.display = 'flex';
+  }
+  function cancelStartJob() {
+    document.getElementById('startJobModal').style.display = 'none';
+    START_BARCODE = null; START_DEPT = null;
+  }
+  function confirmStartJob() {
+    const resource = document.getElementById('resourceSelect').value;
+    if (!START_BARCODE || !START_DEPT || !resource) { alert('ข้อมูลไม่ครบ'); return; }
+    $spinner().style.display = 'flex';
+    google.script.run.withSuccessHandler(() => { cancelStartJob(); refresh(true); $spinner().style.display = 'none'; })
+      .withFailureHandler(err => { alert('เริ่มงานไม่สำเร็จ: ' + err.message); $spinner().style.display = 'none'; })
+      .startJobWithResource(START_BARCODE, START_DEPT, resource);
+  }
+
+  // ===== Modal ค้นหา Barcode =====
+  function openSearchDialog() {
+    const el = document.getElementById('searchModal');
+    document.getElementById('searchResult').innerHTML = '';
+    const inp = document.getElementById('searchBarcodeInput');
+    el.style.display = 'flex'; setTimeout(() => inp.focus(), 50);
+  }
+  function closeSearchDialog() {
+    document.getElementById('searchModal').style.display = 'none';
+  }
+  function doBarcodeSearch() {
+    const q = document.getElementById('searchBarcodeInput').value.trim();
+    const box = document.getElementById('searchResult');
+    if (!q) { alert('กรุณากรอก Barcode'); return; }
+    $spinner().style.display = 'flex';
+    google.script.run
+      .withSuccessHandler(res => {
+        $spinner().style.display = 'none';
+        if (!res || !res.ok) { box.innerHTML = `❌ ${res && res.message ? res.message : 'ไม่พบข้อมูล'}`; return; }
+        box.innerHTML =
+          `📌 <b>Barcode:</b> ${res.barcode}<br>` +
+          `📋 <b>สถานะ:</b> ${res.status || '-'}<br>` +
+          `👤 <b>ผู้ทำงาน:</b> ${res.resource || '-'}` +
+          (res.type ? `<br>🧾 <b>ประเภท:</b> ${res.type}` : '') +
+          (res.dept ? `<br>🏷️ <b>แผนก:</b> ${res.dept}` : '') +
+          (res.note ? `<br>🗒️ <b>หมายเหตุ:</b> ${res.note}` : '');
+      })
+      .withFailureHandler(err => { $spinner().style.display = 'none'; box.innerHTML = '❌ เกิดข้อผิดพลาด: ' + (err && err.message ? err.message : err); })
+      .getJobByBarcode(q);
+  }
+  document.addEventListener('keydown', e => {
+    const modal = document.getElementById('searchModal');
+    if (modal && modal.style.display === 'flex' && e.key === 'Enter') doBarcodeSearch();
+    if (modal && modal.style.display === 'flex' && e.key === 'Escape') closeSearchDialog();
+  });
+
+  // ===== การ์ดงาน =====
+  function createJobListItem(job, index = null, options = { showActions: true, deptName: null, showStartWhenQueued: false }) {
+    const li = document.createElement("li");
+    li.className = job.customClass || '';
+    if (job.status === 'เสร็จแล้ว') li.classList.add('status-completed');
+    if (job.status === 'รอตรวจ')   li.classList.add('pending-inspect');
+
+    const prefix = index !== null ? `<span style="font-weight:bold;color:#0f3c7a;margin-right:5px;">${index + 1}</span>` : '';
+    let icon = '';
+    if      (job.status === 'เริ่มงาน') icon = '➡️';
+    else if (['รอคิว','ล่าช้า','กรุณารีบเร่งงาน'].includes(job.status)) icon = '⏳';
+    else if (job.status === 'รอตรวจ') icon = '🧪';
+    else if (job.status === 'เสร็จแล้ว') icon = '✅';
+    else if (job.status === 'หยุดงาน')   icon = '⏸';
+
+    const urgentBadge = (job.priority === 'urgent')
+      ? ` <span class="badge badge-urgent">🚒 URGENT</span>` : '';
+
+    const header =
+      `${prefix} ${icon} ${job.barcode} ${urgentBadge} ` +
+      `<span style="color:#666">(${job.type || "-"})</span><br>` +
+      `<small>${job.duration || ""}</small>`;
+
+    let actions = '';
+    if (options.showActions) {
+      const btns = [];
+      if (job.status === 'รอคิว' && options.deptName) {
+        btns.push(`<button onclick="showStartJobForm('${job.barcode}','${options.deptName}')" style="padding:4px 8px;">▶ เริ่มงาน</button>`);
+      }
+      if (job.status === 'หยุดงาน') {
+        btns.push(`<button onclick="uiResume('${job.barcode}')" style="padding:4px 8px;">▶ เริ่มงานต่อ</button>`);
+      } else {
+        btns.push(`<button onclick="uiHold('${job.barcode}')" style="padding:4px 8px;">⏸ หยุดงาน</button>`);
+      }
+      if (options.deptName === 'ENG' || options.deptName === 'DS') {
+        btns.push(`<button onclick="uiSendToInspect('${job.barcode}')" style="padding:4px 8px;">🧪 ส่งตรวจ</button>`);
+        if (job.type === 'แบบผลิต' || job.type === 'แบบผลิต-วายริ่ง') btns.push(`<button onclick="uiSendToCAM('${job.barcode}')" style="padding:4px 8px;">📦 ส่งให้ CAM</button>`);
+        else btns.push(`<button onclick="uiSendToSale('${job.barcode}')" style="padding:4px 8px;">📦 ส่งให้ Sale</button>`);
+      }
+      if (options.deptName === 'CAM') {
+        btns.push(`<button onclick="uiSendToPRD('${job.barcode}')" style="padding:4px 8px;">🏭 ส่งให้ PRD</button>`);
+      }
+      actions = `<div style="display:flex;gap:6px;padding:8px 12px;border-top:1px solid #eee;flex-wrap:wrap;">${btns.join('')}</div>`;
+    }
+
+    if (options.showStartWhenQueued && job.status === 'รอคิว' && options.deptName) {
+      actions += `<div style="display:flex;gap:6px;padding:8px 12px;border-top:1px solid #eee;flex-wrap:wrap;">
+        <button onclick="showStartJobForm('${job.barcode}','${options.deptName}')" style="padding:4px 8px;">▶ เริ่มงาน</button>
+      </div>`;
+    }
+
+    li.innerHTML = `<div class="job-header">${header}</div>${actions}`;
+    return li;
+  }
+
+  function toggleResourceStatus(resourceName, newStatus) {
+    const loading = document.getElementById('loadingSpinner');
+    loading.style.display = 'flex';
+    let reason = '';
+    if (newStatus === 'Out of Service') {
+      reason = prompt(`เหตุผลที่ ${resourceName} หยุดทำการ:`, '');
+      if (reason === null || reason.trim() === '') { alert('กรุณากรอกเหตุผล'); loading.style.display = 'none'; return; }
+    }
+    google.script.run.withSuccessHandler(() => {
+      alert(`✅ ${resourceName}: ${newStatus === 'Available' ? 'ว่าง' : 'หยุดทำการ'}`);
+      refresh(true); loading.style.display = 'none';
+    }).withFailureHandler(err => {
+      alert('เปลี่ยนสถานะไม่สำเร็จ: ' + err.message); loading.style.display = 'none';
+    }).updateResourceStatus(resourceName, newStatus, reason);
+  }
+
+  function render(data) {
+    const container = document.getElementById("dashboardContainer");
+    container.innerHTML = "";
+    const allowed = ["ENG","DS","CAM"];
+    const selected = document.getElementById("deptFilter").value;
+    document.getElementById("lastUpdated").textContent = `อัปเดตล่าสุด: ${data.currentTime}`;
+
+    // คอลัมน์แผนกหลัก
+    if (selected === "ALL" || allowed.includes(selected)) {
+      const show = (selected === "ALL") ? allowed : [selected];
+      show.forEach(dept => {
+        const column = document.createElement("div");
+        column.className = "department-column";
+        column.innerHTML = `<h3>${dept}</h3>`;
+        const resources = data.dashboardData[dept];
+        if (!resources) { container.appendChild(column); return; }
+
+        const base = (dept === 'ENG') ? 'EN' : dept;
+        const names = Object.keys(resources).filter(n => n !== dept && n !== base).sort((a, b) => a.localeCompare(b, undefined, { numeric:true }));
+
+        names.forEach(resource => {
+          const box = document.createElement("div");
+          box.className = "resource-box";
+          const allJobs = resources[resource] || [];
+          box.innerHTML = `<h4>⚙️ ทีมงาน: ${resource} (${allJobs.length})</h4><ul></ul>`;
+          const ul = box.querySelector("ul");
+
+          if (allJobs.length === 0) {
+            const st = (data.resourceStatuses || {})[resource] || 'Available';
+            if (st === 'Out of Service') ul.innerHTML = `<li class="status-out-of-service" onclick="toggleResourceStatus('${resource}','Available')">⛔ หยุดทำการ</li>`;
+            else ul.innerHTML = `<li class="status-available" onclick="toggleResourceStatus('${resource}','Out of Service')">✅ ว่าง</li>`;
+          } else {
+            [...allJobs].sort((a,b) => getJobPriorityRank(a) - getJobPriorityRank(b)).forEach((job, i) => {
+              ul.appendChild(createJobListItem(job, i, { showActions:true, deptName:dept }));
+            });
+          }
+          column.appendChild(box);
+        });
+        container.appendChild(column);
+      });
+    }
+
+    // งานที่เพิ่งเสร็จสิ้น
+    if (selected === "ALL" || selected === "COMPLETED") {
+      const col = document.createElement("div");
+      col.className = "department-column completed-column";
+      col.innerHTML = `<h3>✅ งานที่เพิ่งเสร็จสิ้น</h3>`;
+      const box = document.createElement("div"); box.className = "resource-box";
+      const jobs = data.recentlyFinishedJobs || [];
+      box.innerHTML = `<h4>งาน ${jobs.length} ล่าสุด</h4><ul></ul>`;
+      const ul = box.querySelector("ul");
+      if (jobs.length > 0) {
+        jobs.slice(0, 50).forEach((j, i) => { ul.appendChild(createJobListItem(j, i, { showActions:false })); });
+      } else {
+        ul.innerHTML = `<li class="status-available"><span>ยังไม่มีงานที่เพิ่งเสร็จสิ้น</span></li>`;
+      }
+      col.appendChild(box); container.appendChild(col);
+    }
+
+    // งานรอคิวทั้งหมด
+    if (selected === "ALL" || selected === "ALL_QUEUED") {
+      const col = document.createElement("div");
+      col.className = "department-column all-queued-column";
+      const list = (data.allQueuedJobs || []).filter(j => ['ENG','DS','CAM'].includes(j.dept));
+      col.innerHTML = `<h3>⏳ งานรอคิวทั้งหมด (${list.length})</h3>`;
+      const box = document.createElement("div"); box.className = "resource-box";
+      box.innerHTML = `<h4>&nbsp;</h4><ul></ul>`;
+      const ul = box.querySelector("ul");
+
+      if (list.length > 0) {
+        list.sort((a,b) => getJobPriorityRank(a) - getJobPriorityRank(b)).forEach((j, i) => {
+          ul.appendChild(createJobListItem(j, i, { showActions: false, deptName: null, showStartWhenQueued: false }));
+        });
+      } else {
+        ul.innerHTML = `<li class="status-available"><span>ไม่มีงานรอคิวในขณะนี้ 🎉</span></li>`;
+      }
+      col.appendChild(box); container.appendChild(col);
+    }
+
+    // คิวรายแผนก
+    const byDept = (dname, title) => {
+      const list = getQueuedJobsForDepartment(data.dashboardData, dname);
+      const col  = document.createElement("div");
+      col.className = "department-column";
+      col.innerHTML = `<h3>${title} (${list.length})</h3>`;
+      const box = document.createElement("div"); box.className = "resource-box";
+      box.innerHTML = `<h4>&nbsp;</h4><ul></ul>`;
+      const ul = box.querySelector("ul");
+      if (list.length > 0) {
+        list.sort((a,b) => getJobPriorityRank(a) - getJobPriorityRank(b)).forEach((j,i) => {
+          ul.appendChild(createJobListItem(j, i, { showActions:false, deptName: dname, showStartWhenQueued:true }));
+        });
+      } else {
+        ul.innerHTML = `<li class="status-available"><span>ไม่มีงานรอคิวสำหรับแผนก ${dname} 🎉</span></li>`;
+      }
+      col.appendChild(box); container.appendChild(col);
+    };
+    if (selected === "ALL" || selected === "ENG_QUEUED") byDept('ENG','⏳ ENG รอคิว');
+    if (selected === "ALL" || selected === "DS_QUEUED")  byDept('DS','⏳ DS รอคิว');
+    if (selected === "ALL" || selected === "CAM_QUEUED") byDept('CAM','⏳ CAM รอคิว');
+  }
+
+function openDesign(){
+  google.script.run.withSuccessHandler(function(baseUrl){
+    const url = baseUrl.replace(/\/dev$/,'/exec') + '?view=design'; // ✅ แก้ตรงนี้
+    window.open(url, '_blank', 'noopener');
+  }).getWebAppUrl();
+}
+
+
+  function refresh(isSilent = false) {
+    const loading = document.getElementById('loadingSpinner');
+    if (!isSilent) loading.style.display = 'flex';
+    google.script.run.withSuccessHandler(data => { render(data); loading.style.display = 'none'; })
+      .withFailureHandler(err => {
+        document.getElementById("dashboardContainer").innerHTML =
+          `<div style="text-align:center;color:#ef4444;font-weight:bold;">❌ ${err.message}</div>`;
+        loading.style.display = 'none';
+      }).getDetailedDashboardData();
+  }
+
+
+  // ✅ เริ่มต้นโหลด + ตั้ง interval "ครั้งเดียว"
+  window.addEventListener('load', () => {
+    refresh(); // โหลดครั้งแรกทันที
+
+    if (refreshIntervalId) clearInterval(refreshIntervalId);
+    refreshIntervalId = setInterval(() => refresh(true), REFRESH_INTERVAL_SECONDS * 1000);
+  });
+  </script>
+</body>
+</html>

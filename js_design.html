@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>หน้างานคิวงานแผนกออกแบบ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg1:#0a1022;
+      --bg2:#0b2b6a;
+      --glass: rgba(255,255,255,.06);
+      --stroke: rgba(255,255,255,.10);
+      --stroke2: rgba(255,255,255,.14);
+      --txt:#eaf0ff;
+      --muted:#b7c3e3;
+      --shadow: 0 18px 50px rgba(0,0,0,.45);
+
+      --urgentBg: rgba(255, 80, 80, .14);
+      --urgentBd: rgba(255, 80, 80, .35);
+      --urgentTx: #ff7b7b;
+
+      --okBg: rgba(34,197,94,.14);
+      --okBd: rgba(34,197,94,.35);
+      --okTx: #86efac;
+
+      --warnBg: rgba(249,115,22,.14);
+      --warnBd: rgba(249,115,22,.35);
+      --warnTx: #fdba74;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:'Kanit', system-ui, -apple-system, Segoe UI, Roboto;
+      color:var(--txt);
+      background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(90,140,255,.35), transparent 60%),
+        radial-gradient(900px 500px at 20% 10%, rgba(255,120,50,.20), transparent 55%),
+        radial-gradient(900px 500px at 90% 15%, rgba(170,80,255,.20), transparent 55%),
+        linear-gradient(180deg, var(--bg2), var(--bg1));
+      min-height:100vh;
+      padding:20px;
+    }
+    .wrap{max-width:1280px; margin:0 auto;}
+    .topbar{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
+    .title{font-size:28px; font-weight:800; letter-spacing:.2px; display:flex; align-items:center; gap:10px;}
+    .title .line{height:2px; width:120px; background:rgba(255,255,255,.18); border-radius:999px;}
+    .actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .btn{
+      background:rgba(17,24,39,.55);
+      border:1px solid var(--stroke);
+      color:var(--txt);
+      padding:10px 14px;
+      border-radius:14px;
+      cursor:pointer;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
+      font-weight:600;
+    }
+    .btn:hover{border-color:var(--stroke2); transform:translateY(-1px)}
+    .muted{color:var(--muted); font-size:13px}
+
+    .kpis{display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:14px; margin-bottom:14px;}
+    @media (max-width: 980px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    @media (max-width: 520px){ .kpis{grid-template-columns:1fr;} }
+
+    .kpi{
+      position:relative; border-radius:18px; overflow:hidden;
+      padding:16px 16px 14px; box-shadow: var(--shadow);
+      border:1px solid rgba(255,255,255,.12);
+      background: linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+      backdrop-filter: blur(12px);
+      min-height:86px;
+    }
+    .kpi .k{font-size:16px; font-weight:700; opacity:.95}
+    .kpi .v{font-size:34px; font-weight:900; margin-top:6px; line-height:1}
+    .kpi .sub{margin-top:6px; font-size:13px; color:rgba(255,255,255,.80)}
+    .kpi .icon{
+      position:absolute; right:14px; top:14px;
+      width:44px; height:44px; border-radius:14px;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.14);
+      font-size:22px;
+    }
+
+    .board{display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:14px; margin-bottom:14px;}
+    @media (max-width: 1100px){ .board{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    @media (max-width: 560px){ .board{grid-template-columns:1fr;} }
+
+    .col{background: var(--glass); border:1px solid var(--stroke); border-radius:20px; box-shadow: var(--shadow); overflow:hidden; backdrop-filter: blur(12px);}
+    .col .head{padding:14px 14px 10px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; gap:6px;}
+    .headTop{display:flex; align-items:center; justify-content:flex-start; gap:10px; flex-wrap:wrap;}
+    .headTitle{font-weight:900; letter-spacing:.2px; font-size:18px; line-height:1.2;}
+    .badgeJobs{display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px; background: rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.10); font-weight:900; font-size:13px; color:rgba(255,255,255,.92); white-space:nowrap;}
+    .headMeta{font-size:13px; color:rgba(255,255,255,.80); font-weight:700;}
+    .col .body{padding:12px; max-height:380px; overflow:auto}
+
+    .item{border-radius:16px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.18); padding:12px; margin-bottom:10px;}
+    .item .row1{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+    .code{font-weight:900; letter-spacing:.4px; font-size:18px}
+    .chip{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); font-size:12px; font-weight:800; color:rgba(255,255,255,.88); white-space:nowrap;}
+    .chip.urgent{background:var(--urgentBg); border-color:var(--urgentBd); color:var(--urgentTx);}
+    .chip.ok{background:var(--okBg); border-color:var(--okBd); color:var(--okTx);}
+    .chip.warn{background:var(--warnBg); border-color:var(--warnBd); color:var(--warnTx);}
+    .meta{margin-top:8px; color:rgba(255,255,255,.80); font-size:13px; display:flex; gap:10px; flex-wrap:wrap}
+    .btnMore{width:100%; padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color:var(--txt); cursor:pointer; font-weight:900;}
+
+    .bottom{display:grid; grid-template-columns: 2fr 1.4fr; gap:14px;}
+    @media (max-width: 1100px){ .bottom{grid-template-columns:1fr;} }
+    .panel{background: var(--glass); border:1px solid var(--stroke); border-radius:20px; box-shadow: var(--shadow); overflow:hidden; backdrop-filter: blur(12px);}
+    .panel .head{padding:14px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; justify-content:space-between; align-items:center; gap:10px; font-weight:900;}
+    .panel .body{padding:12px 14px 14px;}
+
+    .people{display:flex; flex-direction:column; gap:10px;}
+    .person{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:16px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.16);}
+    .person .left{display:flex; flex-direction:column; gap:2px;}
+    .person .nm{font-weight:900}
+    .person .sm{font-size:12px; color:rgba(255,255,255,.75)}
+    .barWrap{flex:1; height:10px; border-radius:999px; background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10); overflow:hidden; min-width:120px;}
+    .bar{height:100%; width:0%;}
+    .bar.g{background:linear-gradient(90deg, rgba(34,197,94,.9), rgba(34,197,94,.35));}
+    .bar.b{background:linear-gradient(90deg, rgba(59,130,246,.9), rgba(59,130,246,.35));}
+    .bar.o{background:linear-gradient(90deg, rgba(249,115,22,.9), rgba(249,115,22,.35));}
+    .rightNum{min-width:86px; text-align:right; font-weight:900; color:rgba(255,255,255,.92)}
+    .tiny{font-size:12px; color:rgba(255,255,255,.72)}
+
+    .modalBack{position:fixed; inset:0; background: rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:16px; z-index:9999;}
+    .modal{width:min(980px, 100%); max-height: 88vh; overflow:hidden; border-radius:20px; background: rgba(10,16,34,.92); border:1px solid rgba(255,255,255,.14); box-shadow: 0 22px 70px rgba(0,0,0,.55); backdrop-filter: blur(14px); display:flex; flex-direction:column;}
+    .modalHead{padding:14px 14px 10px; border-bottom:1px solid rgba(255,255,255,.10); display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:900;}
+    .modalTitle{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .modalBody{padding:12px 14px 14px; overflow:auto;}
+    .modalClose{border:1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06); color:var(--txt); border-radius:12px; padding:8px 12px; cursor:pointer; font-weight:900;}
+    .sectionTitle{margin:10px 0 8px; font-weight:900; opacity:.95; display:flex; gap:8px; align-items:center;}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">
+        <span style="opacity:.9">หน้างานคิวงานแผนกออกแบบ</span>
+        <span class="line"></span>
+      </div>
+      <div class="actions">
+        <div class="muted" id="last">อัปเดตล่าสุด: -</div>
+        <button class="btn" onclick="load()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi">
+        <div class="icon">📋</div>
+        <div class="k">งานรอคิวทั้งหมด</div>
+        <div class="v" id="kpiQueued">-</div>
+        <div class="sub">รวมทุกประเภท</div>
+      </div>
+      <div class="kpi">
+        <div class="icon">🛠️</div>
+        <div class="k">กำลังทำ (รวม)</div>
+        <div class="v" id="kpiDoing">-</div>
+        <div class="sub">รวมทุกประเภท</div>
+      </div>
+      <div class="kpi">
+        <div class="icon">🧩</div>
+        <div class="k">จำนวนประเภทงาน</div>
+        <div class="v" id="kpiTypes">-</div>
+        <div class="sub">ตาม Type ในชีต</div>
+      </div>
+      <div class="kpi">
+        <div class="icon">⚡</div>
+        <div class="k">คิวเยอะสุด</div>
+        <div class="v" id="kpiMaxName">-</div>
+        <div class="sub" id="kpiMaxVal">-</div>
+      </div>
+    </div>
+
+    <div class="board">
+      <div class="col">
+        <div class="head">
+          <div class="headTop">
+            <div class="headTitle" id="col1Title">ประเภท 1</div>
+            <div class="badgeJobs"><span id="col1Total">-</span>งาน</div>
+          </div>
+          <div class="headMeta">Doing: <span id="col1Doing">-</span> • Queue: <span id="col1Queue">-</span></div>
+        </div>
+        <div class="body" id="col1Body"></div>
+        <div style="padding:12px"><button class="btnMore" id="btnAll1">ดูทั้งหมด</button></div>
+      </div>
+
+      <div class="col">
+        <div class="head">
+          <div class="headTop">
+            <div class="headTitle" id="col2Title">ประเภท 2</div>
+            <div class="badgeJobs"><span id="col2Total">-</span>งาน</div>
+          </div>
+          <div class="headMeta">Doing: <span id="col2Doing">-</span> • Queue: <span id="col2Queue">-</span></div>
+        </div>
+        <div class="body" id="col2Body"></div>
+        <div style="padding:12px"><button class="btnMore" id="btnAll2">ดูทั้งหมด</button></div>
+      </div>
+
+      <div class="col">
+        <div class="head">
+          <div class="headTop">
+            <div class="headTitle" id="col3Title">ประเภท 3</div>
+            <div class="badgeJobs"><span id="col3Total">-</span>งาน</div>
+          </div>
+          <div class="headMeta">Doing: <span id="col3Doing">-</span> • Queue: <span id="col3Queue">-</span></div>
+        </div>
+        <div class="body" id="col3Body"></div>
+        <div style="padding:12px"><button class="btnMore" id="btnAll3">ดูทั้งหมด</button></div>
+      </div>
+
+      <div class="col">
+        <div class="head">
+          <div class="headTop">
+            <div class="headTitle" id="col4Title">ประเภท 4</div>
+            <div class="badgeJobs"><span id="col4Total">-</span>งาน</div>
+          </div>
+          <div class="headMeta">Doing: <span id="col4Doing">-</span> • Queue: <span id="col4Queue">-</span></div>
+        </div>
+        <div class="body" id="col4Body"></div>
+        <div style="padding:12px"><button class="btnMore" id="btnAll4">ดูทั้งหมด</button></div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="panel" id="panelTeam">
+        <div class="head">
+          <span>👥 ทีมคนทำงาน (DS)</span>
+          <span class="tiny">Doing / Queue / Urgent</span>
+        </div>
+        <div class="body">
+          <div class="people" id="teamList"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="head">
+          <span>🧾 ตัวชี้วัด</span>
+          <span class="tiny">จากข้อมูลที่มี</span>
+        </div>
+        <div class="body" id="metricsBox"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalBack" id="modalBack" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modalHead">
+        <div class="modalTitle">
+          <span id="modalTitleText">ดูทั้งหมด</span>
+          <span class="chip ok" id="modalTotalChip">0 งาน</span>
+        </div>
+        <button class="modalClose" onclick="closeModal()">ปิด</button>
+      </div>
+      <div class="modalBody" id="modalBody"></div>
+    </div>
+  </div>
+
+<script>
+  const esc = s => String(s ?? '').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
+  const byId = id => document.getElementById(id);
+  function chip(text, cls){ return `<span class="chip ${cls||''}">${esc(text)}</span>`; }
+
+  const FIXED_TYPES = ['แบบจ่ายงาน','แก้ไขแบบจ่ายงาน','แบบผลิต','แบบผลิต-วายริ่ง'];
+  const COL_MODE = { col1:'queue', col2:'queue', col3:'queue', col4:'queue' };
+  let LAST_DATA = null;
+
+  function renderTeam(team){
+    const list = Array.isArray(team) ? team : [];
+    if (!list.length){
+      byId('teamList').innerHTML = `<div class="muted">ยังไม่มีข้อมูลทีม (หรือโหลดไม่สำเร็จ)</div>`;
+      return;
+    }
+
+    const maxTotal = Math.max(1, ...list.map(x=>Number(x.total)||0));
+
+    byId('teamList').innerHTML = list.slice(0, 30).map(x=>{
+      const total = Number(x.total||0);
+      const pct = Math.round((total / maxTotal) * 100);
+      const cls = total === 0 ? 'g' : (total >= 6 ? 'o' : 'b');
+      const m = x.metrics || { newToday:0, finishedToday:0, overdue3d:0 };
+
+      // ✅ ใช้ displayStatus (มาจาก Logs จริง) เป็นหลัก
+      const st = String(x.displayStatus || 'Unknown').toLowerCase();
+      const statusChip =
+        st.includes('working') ? chip('Working','ok') :
+        st.includes('queue') ? chip('Queue','warn') :
+        st.includes('available') ? chip('Available','ok') :
+        chip(x.displayStatus || x.availabilityStatus || 'Unknown','warn');
+
+      return `
+        <div class="person">
+          <div class="left" style="min-width:220px">
+            <div class="nm">${esc(x.person || x.resource)}</div>
+            <div class="sm">ทำในวัน: ${Number(m.newToday||0)} • เสร็จในวัน: ${Number(m.finishedToday||0)} • ค้าง: ${Number(m.overdue3d||0)}</div>
+          </div>
+
+          <div style="display:flex; gap:8px; align-items:center; min-width:160px; justify-content:flex-end">
+            ${statusChip}
+          </div>
+
+          <div class="barWrap" title="${pct}%"><div class="bar ${cls}" style="width:${pct}%"></div></div>
+          <div class="rightNum">${total} งาน</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function getSummaryItem(summary, typeName){
+    return (Array.isArray(summary) ? summary : []).find(x => String(x.type||'') === String(typeName)) || null;
+  }
+
+  function setColHeader(colNo, typeName, summary){
+    const s = getSummaryItem(summary, typeName) || {doing:0, queue:0, total:0};
+    byId(`col${colNo}Title`).textContent = typeName;
+    byId(`col${colNo}Total`).textContent = Number(s.total || 0);
+    byId(`col${colNo}Doing`).textContent = Number(s.doing || 0);
+    byId(`col${colNo}Queue`).textContent = Number(s.queue || 0);
+  }
+
+  function renderList(typeName, mode, bodyId){
+    const slot = (LAST_DATA?.board?.[typeName]) || { doing:[], queue:[] };
+    const items = (mode === 'doing') ? (slot.doing||[]) : (slot.queue||[]);
+    byId(bodyId).innerHTML = items.slice(0, 40).map(j=>`
+      <div class="item">
+        <div class="row1">
+          <div class="code">${esc(j.barcode)}</div>
+          ${ mode === 'doing'
+              ? chip('Doing','ok')
+              : chip(j.priority === 'urgent' ? 'Rush' : 'Normal', j.priority === 'urgent' ? 'urgent' : '')
+          }
+        </div>
+        <div class="meta">
+          ${chip(j.resource || '-', '')}
+          ${chip(j.status || '-', 'warn')}
+          ${chip(j.age || '-', '')}
+        </div>
+      </div>
+    `).join('') || `<div class="item"><div class="code">— ไม่มีงาน —</div><div class="meta">ไม่พบข้อมูลในประเภทนี้</div></div>`;
+  }
+
+  function openModalForType(typeName){
+    if (!LAST_DATA || !LAST_DATA.board) return;
+
+    const slot = LAST_DATA.board[typeName] || { doing:[], queue:[] };
+    const doing = Array.isArray(slot.doing) ? slot.doing : [];
+    const queue = Array.isArray(slot.queue) ? slot.queue : [];
+    const total = doing.length + queue.length;
+
+    byId('modalTitleText').textContent = `ดูทั้งหมด: ${typeName}`;
+    byId('modalTotalChip').textContent = `${total} งาน`;
+    byId('modalBack').style.display = 'flex';
+
+    const section = (title, arr, mode) => {
+      if (!arr.length) return `
+        <div class="sectionTitle">${esc(title)} ${chip('0 งาน','warn')}</div>
+        <div class="item"><div class="code">— ไม่มีงาน —</div></div>
+      `;
+
+      return `
+        <div class="sectionTitle">${esc(title)} ${chip(`${arr.length} งาน`, mode==='doing'?'ok':'')}</div>
+        ${arr.map(j=>`
+          <div class="item">
+            <div class="row1">
+              <div class="code">${esc(j.barcode)}</div>
+              ${ mode === 'doing'
+                  ? chip('Doing','ok')
+                  : chip(j.priority === 'urgent' ? 'Rush' : 'Normal', j.priority === 'urgent' ? 'urgent' : '')
+              }
+            </div>
+            <div class="meta">
+              ${chip(j.resource || '-', '')}
+              ${chip(j.status || '-', 'warn')}
+              ${chip(j.age || '-', '')}
+              ${j.note ? chip(j.note, '') : ''}
+            </div>
+          </div>
+        `).join('')}
+      `;
+    };
+
+    byId('modalBody').innerHTML = `
+      ${section('กำลังทำ (Doing)', doing, 'doing')}
+      ${section('รอคิว (Queue)', queue, 'queue')}
+    `;
+  }
+
+  function closeModal(ev){
+    if (ev && ev.target && ev.target.id !== 'modalBack') return;
+    byId('modalBack').style.display = 'none';
+  }
+
+  function render(data){
+    LAST_DATA = data;
+
+    byId('last').textContent = 'อัปเดตล่าสุด: ' + (data.currentTime || '-');
+
+    const types   = Array.isArray(data.types) ? data.types : [];
+    const board   = data.board || {};
+    const summary = Array.isArray(data.summary) ? data.summary : [];
+
+    const totalQueued = summary.reduce((a,x)=>a + (Number(x.queue)||0), 0);
+    const totalDoing  = summary.reduce((a,x)=>a + (Number(x.doing)||0), 0);
+
+    byId('kpiQueued').textContent = totalQueued;
+    byId('kpiDoing').textContent  = totalDoing;
+    byId('kpiTypes').textContent  = types.length;
+
+    let max = null;
+    summary.forEach(x=>{
+      if (!max || (Number(x.total)||0) > (Number(max.total)||0)) max = x;
+    });
+    byId('kpiMaxName').textContent = max ? max.type : '-';
+    byId('kpiMaxVal').textContent  = max ? `รวม ${max.total} งาน` : '-';
+
+    const pick = (i) => {
+      const want = FIXED_TYPES[i];
+      if (want && board[want]) return want;
+      return types[i] || `ประเภท ${i+1}`;
+    };
+
+    const t1 = pick(0), t2 = pick(1), t3 = pick(2), t4 = pick(3);
+
+    setColHeader(1, t1, summary);
+    setColHeader(2, t2, summary);
+    setColHeader(3, t3, summary);
+    setColHeader(4, t4, summary);
+
+    renderList(t1, COL_MODE.col1, 'col1Body');
+    renderList(t2, COL_MODE.col2, 'col2Body');
+    renderList(t3, COL_MODE.col3, 'col3Body');
+    renderList(t4, COL_MODE.col4, 'col4Body');
+
+    byId('btnAll1').onclick = () => openModalForType(t1);
+    byId('btnAll2').onclick = () => openModalForType(t2);
+    byId('btnAll3').onclick = () => openModalForType(t3);
+    byId('btnAll4').onclick = () => openModalForType(t4);
+
+    renderTeam(data.team);
+
+    const today = new Date().toLocaleDateString('th-TH');
+    const mbt = data.metricsByType || {};
+    const orderTypes = (Array.isArray(data.types) && data.types.length) ? data.types : FIXED_TYPES;
+
+    function jobsList(title, jobs){
+      const arr = Array.isArray(jobs) ? jobs : [];
+      if (!arr.length) return `<div class="tiny" style="margin-top:6px;opacity:.75">${esc(title)}: —</div>`;
+      return `
+        <div class="tiny" style="margin-top:6px;opacity:.85">
+          ${esc(title)} (${arr.length}):
+          ${arr.slice(0,60).map(x=>`<span class="chip">${esc(x)}</span>`).join(' ')}
+          ${arr.length>60 ? `<span class="chip warn">+${arr.length-60}</span>` : ''}
+        </div>
+      `;
+    }
+
+    byId('metricsBox').innerHTML = `
+      <div class="item">
+        <div class="row1">
+          <div class="code">ภาพรวม (${today})</div>
+          ${chip('แยกตาม Type','ok')}
+        </div>
+
+        <div class="meta">
+          ${orderTypes.map(t=>{
+            const x = mbt[t] || { newToday:{count:0,jobs:[]}, finishedToday:{count:0,jobs:[]}, overdue3d:{count:0,jobs:[]} };
+            const hasOver = (x.overdue3d?.count||0) > 0;
+            return chip(`${t} • ทำในวัน ${x.newToday.count} • เสร็จในวัน ${x.finishedToday.count} • ค้าง ${x.overdue3d.count}`, hasOver ? 'urgent' : '');
+          }).join('')}
+        </div>
+      </div>
+
+      ${orderTypes.map(t=>{
+        const x = mbt[t] || { newToday:{count:0,jobs:[]}, finishedToday:{count:0,jobs:[]}, overdue3d:{count:0,jobs:[]} };
+        return `
+          <div class="item" style="margin-top:12px">
+            <div class="row1">
+              <div class="code">${esc(t)}</div>
+              ${ (x.overdue3d.count>0) ? chip('ค้างเลยกำหนด','urgent') : chip('ปกติ','ok') }
+            </div>
+            <div class="meta">
+              ${chip(`ทำในวัน: ${x.newToday.count}`,'')}
+              ${chip(`เสร็จในวัน: ${x.finishedToday.count}`,'ok')}
+              ${chip(`ค้าง >3วัน: ${x.overdue3d.count}`,'warn')}
+            </div>
+            ${jobsList('เลขงานทำในวัน', x.newToday.jobs)}
+            ${jobsList('เลขงานเสร็จในวัน', x.finishedToday.jobs)}
+            ${jobsList('เลขงานค้าง >3วัน', x.overdue3d.jobs)}
+          </div>
+        `;
+      }).join('')}
+    `;
+  }
+
+  function load(){
+    byId('last').textContent = 'กำลังโหลด...';
+
+    google.script.run
+      .withSuccessHandler(render)
+      .withFailureHandler(err => {
+        console.error(err);
+        alert('โหลดไม่สำเร็จ: ' + (err && err.message ? err.message : err));
+        byId('last').textContent = 'โหลดไม่สำเร็จ (ดู error)';
+      })
+      .getDesignData();
+  }
+
+  window.addEventListener('load', load);
+</script>
+</body>
+</html>
