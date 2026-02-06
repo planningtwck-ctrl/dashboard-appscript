@@ -97,8 +97,13 @@ function _readAvailabilityMap_(){
 
 function getDesignDataSafe(){
   try {
-    return getDesignData();
+    Logger.log('[getDesignDataSafe] Calling Design.getDesignData()...');
+    const result = getDesignData();
+    Logger.log('[getDesignDataSafe] SUCCESS: Got result');
+    return result;
   } catch (err) {
+    Logger.log('[getDesignDataSafe] ERROR: ' + err.message);
+    Logger.log('[getDesignDataSafe] Stack: ' + err.stack);
     return {
       __error: true,
       message: err && err.message ? err.message : String(err),
@@ -115,14 +120,20 @@ function _isDesignDept_(deptRaw){
 
 /** =====================[ DATA API: Design Page ]===================== */
 function getDesignData(){
+  Logger.log('[Design.getDesignData] START');
+  Logger.log('[Design.getDesignData] SPREADSHEET_ID = ' + SPREADSHEET_ID);
+  Logger.log('[Design.getDesignData] SHEET_NAME = ' + SHEET_NAME);
+  
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) throw new Error('ไม่พบชีต: ' + SHEET_NAME);
 
   const values = sh.getDataRange().getValues();
+  Logger.log('[Design.getDesignData] Total rows = ' + values.length);
   const now = new Date();
 
   if (values.length < 2) {
+    Logger.log('[Design.getDesignData] Sheet is empty, returning empty response');
     return { board:{}, summary:[], currentTime: now.toLocaleString('th-TH',{hour12:false}), types:[], team:[], metricsByType:{} };
   }
 
@@ -274,6 +285,8 @@ function getDesignData(){
     .filter(x => x.resource && x.resource !== '-')
     .sort((a, b) => _cmpResource_(a.resource, b.resource));
 
+  Logger.log('[Design.getDesignData] END: Returning data with ' + summary.length + ' types and ' + team.length + ' team members');
+  
   return {
     board,
     summary,

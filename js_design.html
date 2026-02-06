@@ -394,7 +394,24 @@
   }
 
   function render(data){
-    LAST_DATA = data;
+    if (!data) {
+      console.error('render called with null/undefined data');
+      byId('last').textContent = 'โหลดสำเร็จ แต่ไม่มีข้อมูล';
+      LAST_DATA = {};
+      byId('teamList').innerHTML = `<div class="muted">ยังไม่มีข้อมูลทีม (หรือโหลดไม่สำเร็จ)</div>`;
+      byId('metricsBox').innerHTML = `<div class="muted">ยังไม่มีตัวชี้วัด</div>`;
+      return;
+    }
+    if (data.__error) {
+      console.error('Design data error', data);
+      byId('last').textContent = 'โหลดไม่สำเร็จ: ' + (data.message || 'Unknown error');
+      LAST_DATA = {};
+      byId('teamList').innerHTML = `<div class="muted">ข้อผิดพลาด: ${esc(data.message || 'Unknown')}</div>`;
+      byId('metricsBox').innerHTML = `<div class="muted">ข้อผิดพลาดในการดึงข้อมูล</div>`;
+      return;
+    }
+
+    LAST_DATA = data || {};
 
     byId('last').textContent = 'อัปเดตล่าสุด: ' + (data.currentTime || '-');
 
@@ -498,14 +515,56 @@
   function load(){
     byId('last').textContent = 'กำลังโหลด...';
 
-    google.script.run
-      .withSuccessHandler(render)
-      .withFailureHandler(err => {
-        console.error(err);
-        alert('โหลดไม่สำเร็จ: ' + (err && err.message ? err.message : err));
-        byId('last').textContent = 'โหลดไม่สำเร็จ (ดู error)';
+    // ✅ Get current script URL and add ?mode=design-data parameter
+    const currentUrl = window.location.href;
+    const baseUrl = currentUrl.split('?')[0]; // Remove existing params
+    const apiUrl = baseUrl + '?mode=design-data';
+    
+    console.log('[load] Fetching from: ' + apiUrl);
+    
+    fetch(apiUrl)
+      .then(response => {
+        console.log('[load] Response status: ' + response.status);
+        console.log('[load] Response headers: content-type = ' + response.headers.get('content-type'));
+        
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Expected JSON but got ' + contentType);
+        }
+        
+        return response.json();
       })
-      .getDesignData();
+      .then(data => {
+        console.log('[load] Data received successfully:', data);
+        
+        if (!data) {
+          console.warn('[load] Data is null, using empty object');
+          data = { 
+            board: {}, 
+            summary: [], 
+            types: [], 
+            team: [], 
+            metricsByType: {}, 
+            currentTime: new Date().toLocaleString('th-TH')
+          };
+        }
+        
+        if (data.__error) {
+          console.error('[load] Server returned error:', data.message);
+          byId('last').textContent = 'ข้อผิดพลาด: ' + (data.message || 'Unknown error');
+          return;
+        }
+        
+        render(data);
+      })
+      .catch(err => {
+        console.error('[load] Fetch failed:', err.message);
+        byId('last').textContent = 'โหลดไม่สำเร็จ: ' + err.message;
+      });
   }
 
   window.addEventListener('load', load);

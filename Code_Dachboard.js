@@ -9,22 +9,122 @@ function getWebAppUrl(){
 }
 
 function doGet(e){
-  const view = (e && e.parameter && e.parameter.view) || 'dashboard';
+  // Log all parameters for debugging
+  Logger.log('[doGet] Called with params: ' + JSON.stringify(e ? e.parameter : {}));
+  
+  const mode = (e && e.parameter && e.parameter.mode) ? String(e.parameter.mode).trim() : '';
+  const view = (e && e.parameter && e.parameter.view) ? String(e.parameter.view).trim() : 'dashboard';
+  
+  Logger.log('[doGet] mode="' + mode + '" | view="' + view + '"');
+  
+  // ✅ API endpoint: ?mode=design-data จะคืน JSON
+  if (mode === 'design-data') {
+    Logger.log('[doGet] MODE=design-data: Returning JSON');
+    try {
+      const data = getDesignData();
+      Logger.log('[doGet] getDesignData() success, returning JSON');
+      const response = ContentService.createTextOutput(JSON.stringify(data))
+        .setMimeType(ContentService.MimeType.JSON);
+      return response;
+    } catch (err) {
+      Logger.log('[doGet] getDesignData() ERROR: ' + err.message);
+      const errorData = {
+        __error: true,
+        message: err.message,
+        board: {},
+        summary: [],
+        types: [],
+        team: [],
+        metricsByType: {}
+      };
+      return ContentService.createTextOutput(JSON.stringify(errorData))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  
+  // ✅ API endpoint: ?mode=data จะคืน JSON (simple logs)
+  if (mode === 'data') {
+    Logger.log('[doGet] MODE=data: Returning raw logs');
+    const response = {
+      ok: true,
+      timestamp: new Date().toLocaleString('th-TH'),
+      rows: getLogs_()
+    };
+    return ContentService.createTextOutput(JSON.stringify(response))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // HTML views
   if (view === 'report'){
+    Logger.log('[doGet] VIEW=report: Returning HTML');
     return HtmlService.createHtmlOutputFromFile('Report')
       .setTitle('🖨️ A4 Report')
       .addMetaTag('viewport','width=device-width, initial-scale=1');
   }
-  // ✅ เพิ่มตรงนี้
+  
   if (view === 'design'){
+    Logger.log('[doGet] VIEW=design: Returning HTML');
     return HtmlService.createHtmlOutputFromFile('js_design')
       .setTitle('🎨 Design Dashboard')
       .addMetaTag('viewport','width=device-width, initial-scale=1');
   }
 
+  Logger.log('[doGet] DEFAULT: Returning Dashboard HTML');
   return HtmlService.createHtmlOutputFromFile('Dashboard')
     .setTitle('📊 สถานะงาน ENG / DS / CAM')
     .addMetaTag('viewport','width=device-width, initial-scale=1');
+}
+
+/** ===== Read Logs Sheet + Convert to Array of Objects ===== */
+function getLogs_() {
+  try {
+    Logger.log('[getLogs_] START: Reading Logs sheet');
+    
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sh = ss.getSheetByName(SHEET_NAME);
+    
+    if (!sh) {
+      Logger.log('[getLogs_] ERROR: Sheet "' + SHEET_NAME + '" not found');
+      return [];
+    }
+    
+    const values = sh.getDataRange().getValues();
+    Logger.log('[getLogs_] Total rows (including header): ' + values.length);
+    
+    if (values.length < 2) {
+      Logger.log('[getLogs_] Sheet is empty');
+      return [];
+    }
+    
+    // Get headers from first row
+    const headers = values[0].map(h => String(h || '').trim());
+    Logger.log('[getLogs_] Headers: ' + headers.join(', '));
+    
+    // Convert rows to objects
+    const rows = [];
+    for (let r = 1; r < values.length; r++) {
+      const rowData = {};
+      for (let c = 0; c < headers.length; c++) {
+        rowData[headers[c]] = values[r][c] || '';
+      }
+      rows.push(rowData);
+    }
+    
+    // Count DS department rows
+    const dsRows = rows.filter(row => {
+      const dept = String(row['Department'] || '').trim().toLowerCase();
+      return dept === 'ds' || dept === 'design' || dept === 'ออกแบบ';
+    });
+    
+    Logger.log('[getLogs_] Total data rows: ' + rows.length);
+    Logger.log('[getLogs_] DS department rows: ' + dsRows.length);
+    
+    return rows;
+    
+  } catch (err) {
+    Logger.log('[getLogs_] EXCEPTION: ' + err.message);
+    return [];
+  }
 }
 
 /** ===== Read helpers ===== */
@@ -584,6 +684,53 @@ function getDetailedDashboardData() {
     currentTime,
     resourceStatuses
   };
+}
+
+/** ===== ดึงข้อมูล Design Dashboard ===== */
+function getDesignData() {
+  const defaultResponse = {
+    board: {},
+    summary: [],
+    currentTime: new Date().toLocaleString('th-TH', { hour12: false }),
+    types: [],
+    team: [],
+    metricsByType: {}
+  };
+  
+  try {
+    Logger.log('=== [getDesignData] START ===');
+    Logger.log('[getDesignData] typeof getDesignDataSafe = ' + typeof getDesignDataSafe);
+    
+    if (typeof getDesignDataSafe !== 'function') {
+      Logger.log('[getDesignData] ERROR: getDesignDataSafe is not a function!');
+      return defaultResponse;
+    }
+    
+    Logger.log('[getDesignData] Calling getDesignDataSafe()...');
+    const result = getDesignDataSafe();
+    
+    Logger.log('[getDesignData] Result type: ' + typeof result);
+    Logger.log('[getDesignData] Result is null: ' + (result === null));
+    Logger.log('[getDesignData] Result is undefined: ' + (result === undefined));
+    
+    if (!result) {
+      Logger.log('[getDesignData] Result is falsy, using defaultResponse');
+      return defaultResponse;
+    }
+    
+    if (result.__error) {
+      Logger.log('[getDesignData] Got __error: ' + result.message);
+      return result;
+    }
+    
+    Logger.log('[getDesignData] Returning result with ' + (result.types ? result.types.length : 0) + ' types');
+    return result;
+    
+  } catch (err) {
+    Logger.log('[getDesignData] EXCEPTION: ' + err.message);
+    Logger.log('[getDesignData] Stack: ' + err.stack);
+    return defaultResponse;
+  }
 }
 
 /** เติมย้อนหลัง CurrentStart จาก Duration */
