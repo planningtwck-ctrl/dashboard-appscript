@@ -8,71 +8,102 @@ function getWebAppUrl(){
   return ScriptApp.getService().getUrl();
 }
 
-function doGet(e){
-  // Log all parameters for debugging
-  Logger.log('[doGet] Called with params: ' + JSON.stringify(e ? e.parameter : {}));
+function doGet(e) {
+  Logger.log('[doGet] START ===');
   
-  const mode = (e && e.parameter && e.parameter.mode) ? String(e.parameter.mode).trim() : '';
-  const view = (e && e.parameter && e.parameter.view) ? String(e.parameter.view).trim() : 'dashboard';
+  // ✅ อ่านพารามิเตอร์ทั้งหมด
+  const p = e && e.parameter ? e.parameter : {};
+  const api = (p.api || '').trim();
+  const view = (p.view || 'design').trim();
+  const mode = (p.mode || '').trim();
   
-  Logger.log('[doGet] mode="' + mode + '" | view="' + view + '"');
+  Logger.log('[doGet] params=' + JSON.stringify(p));
+  Logger.log('[doGet] api="' + api + '" | view="' + view + '" | mode="' + mode + '"');
   
-  // ✅ API endpoint: ?mode=design-data จะคืน JSON
-  if (mode === 'design-data') {
-    Logger.log('[doGet] MODE=design-data: Returning JSON');
-    try {
-      const data = getDesignData();
-      Logger.log('[doGet] getDesignData() success, returning JSON');
-      const response = ContentService.createTextOutput(JSON.stringify(data))
-        .setMimeType(ContentService.MimeType.JSON);
-      return response;
-    } catch (err) {
-      Logger.log('[doGet] getDesignData() ERROR: ' + err.message);
-      const errorData = {
-        __error: true,
-        message: err.message,
-        board: {},
-        summary: [],
-        types: [],
-        team: [],
-        metricsByType: {}
-      };
-      return ContentService.createTextOutput(JSON.stringify(errorData))
-        .setMimeType(ContentService.MimeType.JSON);
+  try {
+    // ✅ API MODE: คืน JSON
+    if (api === 'designData') {
+      Logger.log('[doGet] API MODE designData: Returning JSON');
+      Logger.log('[doGet] SIGNATURE: sig=GD_v1_API_DESIGN_DATA');
+      
+      try {
+        const data = getDesignDataDS_(); // ✅ เรียกฟังก์ชันใหม่
+        Logger.log('[doGet] getDesignDataDS_() success');
+        Logger.log('[doGet] Data type: ' + typeof data);
+        Logger.log('[doGet] Data keys: ' + (data ? Object.keys(data).join(', ') : 'null'));
+        
+        const jsonString = JSON.stringify(data);
+        Logger.log('[doGet] JSON length: ' + jsonString.length);
+        
+        return ContentService.createTextOutput(jsonString)
+          .setMimeType(ContentService.MimeType.JSON);
+          
+      } catch (err) {
+        Logger.log('[doGet] getDesignDataDS_() ERROR: ' + err.message);
+        Logger.log('[doGet] Stack: ' + err.stack);
+        
+        const errorData = {
+          __error: true,
+          success: false,
+          message: err.message || 'Unknown error',
+          stack: err.stack || '',
+          timestamp: new Date().toISOString(),
+          __apiMode: true,
+          __buildId: BUILD_ID
+        };
+        
+        return ContentService.createTextOutput(JSON.stringify(errorData))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
     }
+    
+    // ✅ WEB MODE: คืน HTML ผ่าน Template
+    Logger.log('[doGet] WEB MODE: Returning HTML for view=' + view);
+    Logger.log('[doGet] SIGNATURE: sig=GD_v1_WEB_APP');
+    
+    // ✅ ดึง Web App URL และ inject ใน template
+    const webappUrl = ScriptApp.getService().getUrl();
+    Logger.log('[doGet] Web App URL: ' + webappUrl);
+    
+    // ✅ สร้าง Template และ inject ตัวแปร
+    const template = HtmlService.createTemplateFromFile('js_design'); // ✅ ไม่ต้อง .html
+    template.WEBAPP_URL = webappUrl; // ✅ สำหรับ <?!= WEBAPP_URL ?>
+    template.buildId = BUILD_ID; // ✅ สำหรับ <?!= buildId ?>
+    template.VIEW = view;
+    
+    // ✅ Debug: ตรวจสอบค่าที่จะส่งให้ template
+    Logger.log('[doGet] Template variables:');
+    Logger.log('[doGet] - WEBAPP_URL: ' + template.WEBAPP_URL);
+    Logger.log('[doGet] - buildId: ' + template.buildId);
+    Logger.log('[doGet] - VIEW: ' + template.VIEW);
+    
+    const output = template.evaluate()
+      .setTitle('Design Dashboard')
+      .setDescription('Design Department Dashboard - Real-time Job Tracking')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      
+    Logger.log('[doGet] HTML output generated successfully');
+    Logger.log('[doGet] Template evaluation completed');
+    Logger.log('[doGet] END ===');
+    
+    return output;
+    
+  } catch (err) {
+    Logger.log('[doGet] GLOBAL EXCEPTION: ' + err.message);
+    Logger.log('[doGet] Stack: ' + err.stack);
+    Logger.log('[doGet] SIGNATURE: sig=GD_v1_GLOBAL_ERROR');
+    
+    // Return error HTML page
+    const errorHtml = HtmlService.createHtmlOutput(`
+      <h1>❌ เกิดข้อผิดพลาด</h1>
+      <p><strong>ข้อความ:</strong> ${err.message || 'Unknown error'}</p>
+      <p><strong>Build ID:</strong> ${BUILD_ID}</p>
+      <p><strong>เวลา:</strong> ${new Date().toLocaleString('th-TH')}</p>
+      <button onclick="location.reload()">รีเฟรชหน้า</button>
+    `).setTitle('Error');
+    
+    return errorHtml;
   }
-  
-  // ✅ API endpoint: ?mode=data จะคืน JSON (simple logs)
-  if (mode === 'data') {
-    Logger.log('[doGet] MODE=data: Returning raw logs');
-    const response = {
-      ok: true,
-      timestamp: new Date().toLocaleString('th-TH'),
-      rows: getLogs_()
-    };
-    return ContentService.createTextOutput(JSON.stringify(response))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  // HTML views
-  if (view === 'report'){
-    Logger.log('[doGet] VIEW=report: Returning HTML');
-    return HtmlService.createHtmlOutputFromFile('Report')
-      .setTitle('🖨️ A4 Report')
-      .addMetaTag('viewport','width=device-width, initial-scale=1');
-  }
-  
-  if (view === 'design'){
-    Logger.log('[doGet] VIEW=design: Returning HTML');
-    return HtmlService.createHtmlOutputFromFile('js_design')
-      .setTitle('🎨 Design Dashboard')
-      .addMetaTag('viewport','width=device-width, initial-scale=1');
-  }
-
-  Logger.log('[doGet] DEFAULT: Returning Dashboard HTML');
-  return HtmlService.createHtmlOutputFromFile('Dashboard')
-    .setTitle('📊 สถานะงาน ENG / DS / CAM')
-    .addMetaTag('viewport','width=device-width, initial-scale=1');
 }
 
 /** ===== Read Logs Sheet + Convert to Array of Objects ===== */
