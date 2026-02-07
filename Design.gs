@@ -1,11 +1,9 @@
 /** =====================[ DESIGN DASHBOARD ]===================== */
 /** ฟังก์ชันสำหรับ Design Dashboard โดยเฉพาะ */
 
-/** ===== CONFIG ===== */
-const SPREADSHEET_ID = '1_HEbYwvcGzMU0QBCMLDILQWcEg9UhfeSM69jUVZGJFo';
-const SHEET_NAME = 'Logs';
-const AV_SHEET_NAME = 'Resource_Availability';
-const BUILD_ID = 'GD_v1_DS';
+/** ===== IMPORT BUILD ID ===== */
+// ✅ ใช้ BUILD_ID โดยตรงจาก Build.gs
+const BUILD_ID = 'GD_v1_BUILD';
 
 /** ===== HELPER FUNCTIONS ===== */
 
@@ -35,11 +33,11 @@ function _isDesignDept_(department) {
 /** อ่านข้อมูล Availability จาก Resource_Availability */
 function _readAvailabilityMap_() {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const avSheet = ss.getSheetByName(AV_SHEET_NAME);
+    const ss = SpreadsheetApp.openById('1_HEbYwvcGzMU0QBCMLDILQWcEg9UhfeSM69jUVZGJFo');
+    const avSheet = ss.getSheetByName('Resource_Availability');
     
     if (!avSheet) {
-      Logger.log('_readAvailabilityMap_: Sheet ' + AV_SHEET_NAME + ' not found');
+      Logger.log('_readAvailabilityMap_: Sheet Resource_Availability not found');
       return {};
     }
     
@@ -171,11 +169,11 @@ function getDesignDataDS_() {
 /** อ่านข้อมูลจาก Logs sheet */
 function _readLogsSheet_() {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_NAME);
+    const ss = SpreadsheetApp.openById('1_HEbYwvcGzMU0QBCMLDILQWcEg9UhfeSM69jUVZGJFo');
+    const sheet = ss.getSheetByName('Logs');
     
     if (!sheet) {
-      Logger.log('_readLogsSheet_: Sheet ' + SHEET_NAME + ' not found');
+      Logger.log('_readLogsSheet_: Sheet Logs not found');
       return [];
     }
     

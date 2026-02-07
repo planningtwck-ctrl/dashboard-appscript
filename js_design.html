@@ -628,10 +628,34 @@
   function load(){
     byId('last').textContent = 'กำลังโหลด...';
 
-    // ✅ ใช้ relative URL สำหรับ fetch
-    const apiUrl = '?api=designData&t=' + Date.now();
+    // ✅ รับค่าจาก Template injection
+    const WEBAPP_URL = '<?!= WEBAPP_URL ?>';
+    const BUILD_ID = '<?!= buildId ?>';
     
-    console.log('[load] API URL (relative): ' + apiUrl);
+    console.log('[load] WEBAPP_URL from server: ' + WEBAPP_URL);
+    console.log('[load] BUILD_ID from server: ' + BUILD_ID);
+    console.log('[load] WEBAPP_URL type: ' + typeof WEBAPP_URL);
+    console.log('[load] WEBAPP_URL length: ' + WEBAPP_URL.length);
+    
+    // ✅ ตรวจสอบว่า Template injection ทำงานหรือไม่
+    if (!WEBAPP_URL || WEBAPP_URL === '<?!= WEBAPP_URL ?>' || WEBAPP_URL.includes('<?')) {
+      console.error('[load] WEBAPP_URL not injected properly!');
+      byId('last').innerHTML = `
+        <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
+          <h3 style="color:#c62828;margin:0 0 10px 0;">❌ WEBAPP_URL ไม่ถูก inject</h3>
+          <p style="margin:0;">Template ไม่ทำงาน - WEBAPP_URL: <code>${WEBAPP_URL}</code></p>
+          <p><strong>Build ID:</strong> ${BUILD_ID}</p>
+          <p><strong>วิธีแก้:</strong> ตรวจสอบว่าใช้ CONFIG และ template.evaluate() หรือไม่</p>
+          <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
+        </div>
+      `;
+      return;
+    }
+    
+    // ✅ สร้าง API URL แบบเต็มจาก WEBAPP_URL ที่ได้จาก server
+    const apiUrl = WEBAPP_URL + '?api=designData&t=' + Date.now();
+    
+    console.log('[load] API URL (full): ' + apiUrl);
     console.log('[load] Starting fetch...');
     
     fetch(apiUrl, {
@@ -733,8 +757,9 @@
         <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
           <h3 style="color:#c62828;margin:0 0 10px 0;">❌ ข้อผิดพลาดในการดึงข้อมูล</h3>
           <p style="margin:0;">${err.message}</p>
+          <p><strong>WEBAPP_URL:</strong> <code>${WEBAPP_URL}</code></p>
           <p><strong>API URL:</strong> <code>${apiUrl}</code></p>
-          <p><strong>วิธีแก้:</strong> รีเฟรชหน้าหรือ login ใหม่</p>
+          <p><strong>Build ID:</strong> ${BUILD_ID}</p>
           <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
         </div>
       `;
