@@ -1,23 +1,48 @@
 /** =====================[ BUILD CONFIGURATION ]===================== */
-/** ไฟล์คอนฟิกกลาง Build ID สำหรับ Apps Script ทั้งหมด */
+/** ไฟล์คอนฟิก Build ID สำหรับ Apps Script ทั้งหมด */
 
-/** ===== GLOBAL BUILD ID ===== */
+/** ===== GLOBAL BUILD OBJECT ===== */
 // ✅ ใช้ var เพื่อให้เป็น Global ทันที
-var BUILD_ID = 'GD_v1_BUILD';
+var BUILD = {
+  ID: 'GD_v1_BUILD',
+  VERSION: '1.0.0',
+  ENVIRONMENT: 'production'
+};
+
+// ✅ ตั้งค่า globalThis เพื่อให้ไฟล์อื่นเข้าถึงได้
+globalThis.BUILD = BUILD;
 
 /**
- * ดึงค่า build ID
+ * ดึงค่า Build ID
  * @return {string} Build ID
  */
 function getBuildId() {
-  return BUILD_ID;
+  return (typeof BUILD !== 'undefined' && BUILD.ID) ? BUILD.ID : 'UNKNOWN';
 }
 
 /**
- * Log build ID สำหรับ debug
+ * ดึงค่า Build Version
+ * @return {string} Build Version
  */
-function logBuildId() {
-  Logger.log('=== BUILD ID DEBUG ===');
-  Logger.log('BUILD_ID: ' + BUILD_ID);
-  Logger.log('=== END BUILD ID DEBUG ===');
+function getBuildVersion() {
+  return (typeof BUILD !== 'undefined' && BUILD.VERSION) ? BUILD.VERSION : 'UNKNOWN';
+}
+
+/**
+ * ดึงค่า Environment
+ * @return {string} Environment
+ */
+function getEnvironment() {
+  return (typeof BUILD !== 'undefined' && BUILD.ENVIRONMENT) ? BUILD.ENVIRONMENT : 'UNKNOWN';
+}
+
+/**
+ * Log build information สำหรับ debug
+ */
+function logBuildInfo() {
+  Logger.log('=== BUILD INFO DEBUG ===');
+  Logger.log('BUILD.ID: ' + BUILD.ID);
+  Logger.log('BUILD.VERSION: ' + BUILD.VERSION);
+  Logger.log('BUILD.ENVIRONMENT: ' + BUILD.ENVIRONMENT);
+  Logger.log('=== END BUILD INFO DEBUG ===');
 }

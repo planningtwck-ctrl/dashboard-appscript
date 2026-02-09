@@ -447,10 +447,13 @@
     setColHeader(4, t4, summary);
 
     byId('btnAll1').onclick = () => {
-      console.log('[load] Fetching data from API endpoint...');
-        
-      const apiUrl = window.location.origin + window.location.pathname + '?api=designData&t=' + Date.now();
-        
+      console.log('[btnAll1] Refreshing data from API endpoint...');
+      
+      // ✅ ใช้ WEBAPP_URL ที่ inject มาจาก template
+      const apiUrl = WEBAPP_URL + '?api=designData&t=' + Date.now();
+      
+      console.log('[btnAll1] API URL:', apiUrl);
+      
       fetch(apiUrl, {
         method: 'GET',
         headers: {
@@ -459,111 +462,69 @@
         }
       })
       .then(response => {
-        console.log('[load] Response status:', response.status);
-        console.log('[load] Response headers:', Object.fromEntries(response.headers.entries()));
-        console.log('[load] Content-Type:', response.headers.get('content-type'));
-          
+        console.log('[btnAll1] Response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         // ✅ ตรวจสอบ Content-Type
         const contentType = response.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
-          throw new Error('Expected JSON but got ' + contentType + ' - อาจต้อง login หรือ session หมด');
+          return response.text().then(text => {
+            throw new Error('INVALID_CONTENT_TYPE: ' + contentType + ' - ' + text.substring(0, 100));
+          });
         }
-          
+        
         return response.json();
       })
       .then(data => {
-        console.log('[load] Data received successfully (fetch):', data);
-        console.log('[load] Data type:', typeof data);
-        console.log('[load] Data keys:', data ? Object.keys(data) : 'null');
-          
-        // ✅ ตรวจสอบข้อมูล
-        if (data === null || data === undefined) {
-          console.error('[load] CRITICAL ERROR: Received null from API');
-          showErrorPage('ได้รับข้อมูล null จากเซิร์ฟเวอร์', data);
-          return;
+        console.log('[btnAll1] Data received:', data);
+        
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid data format: ' + typeof data);
         }
-          
-        if (data.__error) {
-          console.error('[load] Server returned error:', data.message);
-          showErrorPage('โหลดไม่สำเร็จ: ' + (data.message || 'Unknown error'), data);
-          return;
+        
+        // ✅ extract actual data
+        const actualData = data.data || data;
+        
+        if (actualData.__error || data.error) {
+          throw new Error('Server error: ' + (actualData.message || data.error || 'Unknown'));
         }
-          
-        // ✅ ตรวจสอบว่าเป็น hardcoded test หรือไม่
-        if (data.__hardcodedTest === 'HARDCODE_RETURN_TEST_PROD') {
-          console.log('[load] ✅ HARDCODE TEST SUCCESS: API คืน object ถูกต้อง');
-          byId('buildMarker').textContent = '✅ HARDCODE OK';
-          byId('last').textContent = '✅ Hardcode test สำเร็จ - API ถูกต้อง';
-            
-          const successDiv = document.createElement('div');
-          successDiv.style.cssText = 'background:#e8f5e8;color:#2e7d32;padding:10px;margin:10px;border-radius:4px;text-align:center;font-size:12px;';
-          successDiv.innerHTML = '✅ Hardcode Test สำเร็จ - API คืน object ถูกต้อง';
-            
-          const topbar = document.querySelector('.topbar');
-          if (topbar) {
-            topbar.appendChild(successDiv);
-          }
-        }
-          
-        // ✅ ตรวจสอบ Production Mode
-        if (data.__signature === 'SIG_GETDESIGNDATA_PROD_V1') {
-          console.log('[load] ✅ PRODUCTION MODE: ได้รับข้อมูลจาก API จริง');
-          byId('buildMarker').textContent = 'Build: ' + data.__buildId;
-          byId('last').textContent = '✅ Production Mode สำเร็จ - ใช้ API';
-        }
-          
-        // ✅ ตรวจสอบว่าไม่มีงานค้าง
-        if (data.__noPendingJobs && data.__message === 'ไม่มีงานค้าง') {
-          console.log('[load] ✅ NO PENDING JOBS: ไม่มีงานค้าง');
-          byId('buildMarker').textContent = '✅ ไม่มีงานค้าง';
-          byId('last').textContent = '✅ ไม่มีงานค้าง - ทุกงานเสร็จสมบูรณ์';
-            
-          const successDiv = document.createElement('div');
-          successDiv.style.cssText = 'background:#e8f5e8;color:#2e7d32;padding:15px;margin:15px;border-radius:8px;text-align:center;font-size:14px;';
-          successDiv.innerHTML = '✅ ไม่มีงานค้าง - ทุกงานเสร็จสมบูรณ์';
-            
-          const topbar = document.querySelector('.topbar');
-          if (topbar) {
-            topbar.appendChild(successDiv);
-          }
-        }
-          
-        // ✅ ตรวจสอบจำนวนงานค้าง
-        if (data.__pendingJobsCount !== undefined) {
-          console.log('[load] ✅ PENDING JOBS COUNT: ' + data.__pendingJobsCount);
-          if (data.__pendingJobsCount > 0) {
-            byId('last').textContent = '📋 พบงานค้าง ' + data.__pendingJobsCount + ' รายการ';
-          }
-        }
-          
-        // ✅ เรียก render() ถ้าข้อมูลถูกต้อง
-        render(data);
+        
+        // ✅ render ข้อมูล
+        render(actualData);
+        
+        byId('last').textContent = 'อัปเดตล่าสุด: ' + new Date().toLocaleString('th-TH');
           
       })
       .catch(error => {
-        console.error('[load] Fetch error:', error);
-        console.error('[load] Error message:', error.message);
-          
-        // ✅ แสดง error ถ้าได้ HTML แทน JSON
-        if (error.message.includes('Expected JSON but got text/html')) {
-          showErrorPage('ได้รับ HTML แทน JSON - อาจต้อง login หรือ session หมด<br><strong>วิธีแก้:</strong> รีเฟรชหน้าหรือ login ใหม่', null);
+        console.error('[btnAll1] Fetch error:', error.message);
+        
+        const errorMsg = error.message;
+        const isContentTypeError = errorMsg.includes('INVALID_CONTENT_TYPE');
+        
+        if (isContentTypeError) {
+          byId('last').innerHTML = `
+            <div style="background:#ffebee;color:#c62828;padding:15px;margin:15px;border-radius:8px;text-align:center;">
+              <h3 style="color:#c62828;margin:0 0 10px;">❌ ได้รับ HTML แทน JSON</h3>
+              <p style="margin:0;">${errorMsg}</p>
+              <p style="margin:5px 0;"><strong>API URL:</strong> <code>${apiUrl}</code></p>
+              <p style="margin:5px 0;"><strong>Build ID:</strong> ${BUILD_ID}</p>
+              <button onclick="load()" style="background:#3b82f6;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;margin-top:8px;">ลองอีกครั้ง</button>
+            </div>
+          `;
         } else {
-          showErrorPage('เกิดข้อผิดพลาดในการดึงข้อมูล: ' + error.message, null);
+          byId('last').innerHTML = `
+            <div style="background:#ffebee;color:#c62828;padding:15px;margin:15px;border-radius:8px;text-align:center;">
+              <h3 style="color:#c62828;margin:0 0 10px;">❌ ข้อผิดพลาด</h3>
+              <p style="margin:0;">${errorMsg}</p>
+              <p style="margin:5px 0;"><strong>Build ID:</strong> ${BUILD_ID}</p>
+              <button onclick="load()" style="background:#3b82f6;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;margin-top:8px;">ลองอีกครั้ง</button>
+            </div>
+          `;
         }
       });
-        
-      function showErrorPage(message, data) {
-        byId('last').innerHTML = `
-          <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
-            <h3 style="color:#c62828;margin:0 0 10px 0;">❌ ข้อผิดพลาด</h3>
-            <p style="margin:0;">${message}</p>
-            ${data ? `<p><strong>Build ID:</strong> ${data.__buildId || 'unknown'}</p>` : ''}
-            <p><strong>เวลา:</strong> ${new Date().toLocaleString('th-TH')}</p>
-            <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
-          </div>
-        `;
-      }
-    };
 
     byId('btnAll2').onclick = () => openModalForType(t2);
     byId('btnAll3').onclick = () => openModalForType(t3);
@@ -628,35 +589,40 @@
   function load(){
     byId('last').textContent = 'กำลังโหลด...';
 
-    // ✅ รับค่าจาก Template injection
-    const WEBAPP_URL = '<?!= WEBAPP_URL ?>';
-    const BUILD_ID = '<?!= buildId ?>';
+    // ✅ รับค่าจาก Template injection (Google Apps Script)
+    const WEBAPP_URL = '<? WEBAPP_URL ?>';
+    const BUILD_ID = '<? BUILD_ID ?>';
     
     console.log('[load] WEBAPP_URL from server: ' + WEBAPP_URL);
     console.log('[load] BUILD_ID from server: ' + BUILD_ID);
-    console.log('[load] WEBAPP_URL type: ' + typeof WEBAPP_URL);
-    console.log('[load] WEBAPP_URL length: ' + WEBAPP_URL.length);
     
     // ✅ ตรวจสอบว่า Template injection ทำงานหรือไม่
-    if (!WEBAPP_URL || WEBAPP_URL === '<?!= WEBAPP_URL ?>' || WEBAPP_URL.includes('<?')) {
+    if (!WEBAPP_URL || WEBAPP_URL.trim() === '' || WEBAPP_URL.includes('<?')) {
       console.error('[load] WEBAPP_URL not injected properly!');
       byId('last').innerHTML = `
         <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
           <h3 style="color:#c62828;margin:0 0 10px 0;">❌ WEBAPP_URL ไม่ถูก inject</h3>
-          <p style="margin:0;">Template ไม่ทำงาน - WEBAPP_URL: <code>${WEBAPP_URL}</code></p>
-          <p><strong>Build ID:</strong> ${BUILD_ID}</p>
-          <p><strong>วิธีแก้:</strong> ตรวจสอบว่าใช้ CONFIG และ template.evaluate() หรือไม่</p>
+          <p style="margin:0;">Template ไม่ทำงาน - ต้องเปิดผ่าน /exec URL เท่านั้น ไม่ใช่ /dev preview</p>
+          <p><strong>Value:</strong> <code>${WEBAPP_URL}</code></p>
+          <p><strong>Build ID:</strong> <code>${BUILD_ID}</code></p>
+          <p><strong>วิธีแก้:</strong></p>
+          <ol style="text-align:left; display:inline-block;">
+            <li>Deploy as Web App (ถ้ายังไม่มี)</li>
+            <li>Copy Deployment URL (ลงท้ายด้วย /exec)</li>
+            <li>เปิดหน้าผ่าน /exec URL เท่านั้น</li>
+            <li>ห้ามเปิดจาก /dev หรือ preview</li>
+          </ol>
           <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
         </div>
       `;
       return;
     }
     
-    // ✅ สร้าง API URL แบบเต็มจาก WEBAPP_URL ที่ได้จาก server
+    // ✅ สร้าง API URL
     const apiUrl = WEBAPP_URL + '?api=designData&t=' + Date.now();
     
-    console.log('[load] API URL (full): ' + apiUrl);
-    console.log('[load] Starting fetch...');
+    console.log('[load] API URL:', apiUrl);
+    console.log('[load] Fetching design data from API...');
     
     fetch(apiUrl, {
       method: 'GET',
@@ -666,72 +632,44 @@
       }
     })
     .then(response => {
-      console.log('[load] Response status: ' + response.status);
-      console.log('[load] Response headers: content-type = ' + response.headers.get('content-type'));
-      console.log('[load] Response ok: ' + response.ok);
+      console.log('[load] Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('HTTP ' + response.status);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      // ✅ ตรวจสอบ Content-Type ก่อน parse JSON
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         return response.text().then(text => {
-          console.log('[load] Received HTML instead of JSON:', text.substring(0, 200));
-          throw new Error('Expected JSON but got ' + contentType + ' - อาจต้อง login หรือ session หมด');
+          throw new Error('INVALID_CONTENT_TYPE: ' + contentType);
         });
       }
       
       return response.json();
     })
     .then(data => {
-      console.log('[load] Data received successfully:', data);
-      console.log('[load] Data type:', typeof data);
-      console.log('[load] Data keys:', data ? Object.keys(data) : 'null');
+      console.log('[load] Data received:', data);
       
-      // ✅ ตรวจสอบข้อมูล
-      if (data === null || data === undefined) {
-        console.warn('[load] Data is null, using empty object');
-        data = { 
-          board: {}, 
-          summary: [], 
-          types: [], 
-          team: [], 
-          metricsByType: {}, 
-          currentTime: new Date().toLocaleString('th-TH')
-        };
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data format: ' + typeof data);
       }
       
-      if (data.__error) {
-        console.error('[load] Server returned error:', data.message);
-        byId('last').innerHTML = `
-          <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
-            <h3 style="color:#c62828;margin:0 0 10px 0;">❌ ข้อผิดพลาดจากเซิร์ฟเวอร์</h3>
-            <p style="margin:0;">${data.message || 'Unknown error'}</p>
-            <p><strong>Build ID:</strong> ${data.__buildId || 'unknown'}</p>
-            <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
-          </div>
-        `;
-        return;
-      }
+      // ✅ extract actual data
+      const actualData = data.data || data;
       
-      // ✅ ตรวจสอบ DS Mode
-      if (data.__signature === 'SIG_GETDESIGNDATA_DS_V1') {
-        console.log('[load] ✅ DS MODE: ได้รับข้อมูลจาก getDesignDataDS_() จริง');
-        byId('buildMarker').textContent = 'Build: ' + data.__buildId;
-        byId('last').textContent = '✅ DS Mode สำเร็จ - ใช้ API';
+      if (actualData.__error || data.error) {
+        throw new Error('Server error: ' + (actualData.message || data.error));
       }
       
       // ✅ ตรวจสอบว่าไม่มีงานค้าง
-      if (data.__noPendingJobs && data.__message) {
-        console.log('[load] ✅ NO PENDING JOBS: ' + data.__message);
-        byId('buildMarker').textContent = '✅ ' + data.__message;
-        byId('last').textContent = '✅ ' + data.__message;
+      if (actualData.__noPendingJobs && actualData.__message) {
+        console.log('[load] ✅ NO PENDING JOBS: ' + actualData.__message);
+        byId('buildMarker').textContent = '✅ ' + actualData.__message;
+        byId('last').textContent = '✅ ' + actualData.__message;
         
         const successDiv = document.createElement('div');
         successDiv.style.cssText = 'background:#e8f5e8;color:#2e7d32;padding:15px;margin:15px;border-radius:8px;text-align:center;font-size:14px;';
-        successDiv.innerHTML = '✅ ' + data.__message;
+        successDiv.innerHTML = '✅ ' + actualData.__message;
         
         const topbar = document.querySelector('.topbar');
         if (topbar) {
@@ -740,29 +678,43 @@
       }
       
       // ✅ ตรวจสอบจำนวนงานค้าง
-      if (data.__pendingJobsCount !== undefined) {
-        console.log('[load] ✅ PENDING JOBS COUNT: ' + data.__pendingJobsCount);
-        if (data.__pendingJobsCount > 0) {
-          byId('last').textContent = '📋 พบงานค้าง ' + data.__pendingJobsCount + ' รายการ';
+      if (actualData.__pendingJobsCount !== undefined) {
+        console.log('[load] ✅ PENDING JOBS COUNT: ' + actualData.__pendingJobsCount);
+        if (actualData.__pendingJobsCount > 0) {
+          byId('last').textContent = '📋 พบงานค้าง ' + actualData.__pendingJobsCount + ' รายการ';
         }
       }
       
-      render(data);
+      render(actualData);
     })
-    .catch(err => {
-      console.error('[load] Fetch failed:', err.message);
+    .catch(error => {
+      console.error('[load] Fetch error:', error.message);
       
-      // ✅ แสดง error พร้อมข้อมูล debug
-      byId('last').innerHTML = `
-        <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
-          <h3 style="color:#c62828;margin:0 0 10px 0;">❌ ข้อผิดพลาดในการดึงข้อมูล</h3>
-          <p style="margin:0;">${err.message}</p>
-          <p><strong>WEBAPP_URL:</strong> <code>${WEBAPP_URL}</code></p>
-          <p><strong>API URL:</strong> <code>${apiUrl}</code></p>
-          <p><strong>Build ID:</strong> ${BUILD_ID}</p>
-          <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
-        </div>
-      `;
+      const errorMsg = error.message;
+      const isContentTypeError = errorMsg.includes('INVALID_CONTENT_TYPE');
+      
+      if (isContentTypeError) {
+        byId('last').innerHTML = `
+          <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
+            <h3 style="color:#c62828;margin:0 0 10px;">❌ ได้รับ HTML แทน JSON</h3>
+            <p style="margin:0;">${errorMsg}</p>
+            <p style="margin:5px 0;"><strong>API URL:</strong> <code>${apiUrl}</code></p>
+            <p style="margin:5px 0;"><strong>Build ID:</strong> ${BUILD_ID}</p>
+            <p><strong>สาเหตุ:</strong> API ส่งคืน HTML หรืออยู่ใน /dev preview mode</p>
+            <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
+          </div>
+        `;
+      } else {
+        byId('last').innerHTML = `
+          <div style="background:#ffebee;color:#c62828;padding:20px;margin:20px;border-radius:8px;text-align:center;">
+            <h3 style="color:#c62828;margin:0 0 10px;">❌ ข้อผิดพลาด</h3>
+            <p style="margin:0;">${errorMsg}</p>
+            <p style="margin:5px 0;"><strong>API URL:</strong> <code>${apiUrl}</code></p>
+            <p style="margin:5px 0;"><strong>Build ID:</strong> ${BUILD_ID}</p>
+            <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
+          </div>
+        `;
+      }
     });
   }
 

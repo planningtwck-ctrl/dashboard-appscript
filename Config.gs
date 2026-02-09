@@ -2,7 +2,7 @@
 /** ไฟล์คอนฟิกกลางสำหรับ Apps Script ทั้งหมด */
 
 /** ===== GLOBAL CONFIGURATION ===== */
-// ✅ ใช้ var แทน const เพื่อให้เป็น Global ทันที
+// ✅ ใช้ var เพื่อให้เป็น Global ทันที
 var CONFIG = {
   // Spreadsheet Configuration
   SPREADSHEET_ID: '1_HEbYwvcGzMU0QBCMLDILQWcEg9UhfeSM69jUVZGJFo',
@@ -22,6 +22,9 @@ var CONFIG = {
   API_TIMEOUT: 30000,
   CACHE_DURATION: 300 // 5 minutes
 };
+
+// ✅ ตั้งค่า globalThis เพื่อให้ไฟล์อื่นเข้าถึงได้
+globalThis.CONFIG = CONFIG;
 
 /** ===== HELPER FUNCTIONS ===== */
 

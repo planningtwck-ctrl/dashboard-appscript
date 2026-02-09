@@ -339,7 +339,61 @@
     container.innerHTML = "";
     const allowed = ["ENG","DS","CAM"];
     const selected = document.getElementById("deptFilter").value;
-    document.getElementById("lastUpdated").textContent = `อัปเดตล่าสุด: ${data.currentTime}`;
+    
+    // ✅ Guard: ตรวจสอบว่ามี dashboardData หรือไม่
+    if (!data || !data.dashboardData) {
+      console.error('❌ Dashboard data is missing:', data);
+      console.error('❌ Data structure:', JSON.stringify(data, null, 2));
+      
+      container.innerHTML = `
+        <div style="text-align:center; padding:50px; background:#fff; border-radius:10px; margin:20px;">
+          <h2 style="color:#ef4444;">❌ ไม่สามารถโหลดข้อมูลได้</h2>
+          <p style="color:#6b7280; margin:10px 0;">ไม่พบข้อมูล dashboardData จากเซิร์ฟเวอร์</p>
+          <div style="background:#f3f4f6; padding:15px; border-radius:5px; margin:15px 0; text-align:left;">
+            <h4 style="color:#374151; margin:0 0 10px;">🔍 รายละเอียดข้อมูลที่ได้รับ:</h4>
+            <pre style="background:#1f2937; color:#f3f4f6; padding:10px; border-radius:3px; overflow:auto; font-size:12px; white-space:pre-wrap;">${JSON.stringify(data, null, 2)}</pre>
+          </div>
+          <p style="color:#9ca3af; font-size:0.9em;">กรุณาตรวจสอบการเชื่อมต่อหรือรีเฟรชหน้า</p>
+          <button onclick="refresh()" style="padding:10px 20px; background:#3b82f6; color:#fff; border:none; border-radius:5px; cursor:pointer; margin:5px;">
+            🔄 รีเฟรชข้อมูล
+          </button>
+          <button onclick="location.reload()" style="padding:10px 20px; background:#10b981; color:#fff; border:none; border-radius:5px; cursor:pointer; margin:5px;">
+            🔃 รีโหลดหน้า
+          </button>
+        </div>
+      `;
+      
+      // ✅ หยุด loading
+      const loading = document.getElementById('loadingSpinner');
+      if (loading) loading.style.display = 'none';
+      
+      return;
+    }
+    
+    // ✅ Guard: ตรวจสอบว่าแผนกที่ต้องการมีข้อมูลหรือไม่
+    const missingDepts = allowed.filter(dept => !data.dashboardData[dept]);
+    if (missingDepts.length > 0) {
+      console.warn('⚠️ Missing departments:', missingDepts);
+      console.warn('⚠️ Available departments:', Object.keys(data.dashboardData));
+    }
+    
+    // ✅ Guard: ตรวจสอบว่าแต่ละแผนกเป็น array หรือไม่
+    const invalidDepts = allowed.filter(dept => {
+      const deptData = data.dashboardData[dept];
+      return !Array.isArray(deptData);
+    });
+    
+    if (invalidDepts.length > 0) {
+      console.error('❌ Invalid department data types:', invalidDepts);
+      console.error('❌ Department data types:', 
+        Object.keys(data.dashboardData).reduce((acc, dept) => {
+          acc[dept] = typeof data.dashboardData[dept];
+          return acc;
+        }, {})
+      );
+    }
+    
+    document.getElementById("lastUpdated").textContent = `อัปเดตล่าสุด: ${data.lastUpdated || data.timestamp || new Date().toLocaleString('th-TH')}`;
 
     // คอลัมน์แผนกหลัก
     if (selected === "ALL" || allowed.includes(selected)) {
@@ -348,16 +402,40 @@
         const column = document.createElement("div");
         column.className = "department-column";
         column.innerHTML = `<h3>${dept}</h3>`;
+        
+        // ✅ Guard: ตรวจสอบว่าแผนกนี้มีข้อมูลหรือไม่
         const resources = data.dashboardData[dept];
-        if (!resources) { container.appendChild(column); return; }
+        if (!resources || !Array.isArray(resources)) {
+          console.warn(`⚠️ Department ${dept} has no valid data:`, resources);
+          column.innerHTML += `
+            <div style="text-align:center; padding:20px; color:#6b7280;">
+              <p>ไม่มีข้อมูลสำหรับแผนก ${dept}</p>
+              <small>ประเภทข้อมูล: ${typeof resources}</small>
+              <br><small>ค่า: ${JSON.stringify(resources)}</small>
+            </div>
+          `;
+          container.appendChild(column);
+          return;
+        }
 
         const base = (dept === 'ENG') ? 'EN' : dept;
-        const names = Object.keys(resources).filter(n => n !== dept && n !== base).sort((a, b) => a.localeCompare(b, undefined, { numeric:true }));
+        
+        // ✅ แก้จาก Object.keys(resources) เป็นการจัดกลุ่มตาม Resource
+        const resourceGroups = {};
+        resources.forEach(job => {
+          const resource = String(job.Resource || job['ผู้รับผิดชอบ'] || 'ไม่ระบุ').trim();
+          if (!resourceGroups[resource]) {
+            resourceGroups[resource] = [];
+          }
+          resourceGroups[resource].push(job);
+        });
+        
+        const names = Object.keys(resourceGroups).filter(n => n !== dept && n !== base).sort((a, b) => a.localeCompare(b, undefined, { numeric:true }));
 
         names.forEach(resource => {
           const box = document.createElement("div");
           box.className = "resource-box";
-          const allJobs = resources[resource] || [];
+          const allJobs = resourceGroups[resource] || [];
           box.innerHTML = `<h4>⚙️ ทีมงาน: ${resource} (${allJobs.length})</h4><ul></ul>`;
           const ul = box.querySelector("ul");
 
@@ -447,12 +525,192 @@ function openDesign(){
   function refresh(isSilent = false) {
     const loading = document.getElementById('loadingSpinner');
     if (!isSilent) loading.style.display = 'flex';
-    google.script.run.withSuccessHandler(data => { render(data); loading.style.display = 'none'; })
-      .withFailureHandler(err => {
-        document.getElementById("dashboardContainer").innerHTML =
-          `<div style="text-align:center;color:#ef4444;font-weight:bold;">❌ ${err.message}</div>`;
-        loading.style.display = 'none';
-      }).getDetailedDashboardData();
+    
+    // ✅ ใช้ WEBAPP_URL ที่ inject จาก template (Google Apps Script)
+    const WEBAPP_URL = '<? WEBAPP_URL ?>';
+    const BUILD_ID = '<? BUILD_ID ?>';
+    const apiUrl = WEBAPP_URL + '?api=dashboardData&t=' + Date.now();
+    
+    console.log('[refresh] WEBAPP_URL from template: ' + WEBAPP_URL);
+    console.log('[refresh] BUILD_ID from template: ' + BUILD_ID);
+    console.log('[refresh] Fetching from:', apiUrl);
+    
+    // ✅ ตรวจสอบว่า WEBAPP_URL ถูก inject หรือไม่
+    if (!WEBAPP_URL || WEBAPP_URL.trim() === '' || WEBAPP_URL.includes('<?')) {
+      console.error('[refresh] WEBAPP_URL not injected properly!');
+      document.getElementById("dashboardContainer").innerHTML = `
+        <div style="text-align:center; padding:50px; background:#fff; border-radius:10px; margin:20px;">
+          <h2 style="color:#ef4444;">❌ WEBAPP_URL ไม่ถูก inject</h2>
+          <p style="color:#6b7280; margin:10px 0;">Template ไม่ทำงาน - ต้องเปิดผ่าน /exec URL เท่านั้น ไม่ใช่ /dev preview</p>
+          <p style="color:#6b7280; margin:10px 0;"><strong>Value:</strong> <code>${WEBAPP_URL}</code></p>
+          <p><strong>Build ID:</strong> <code>${BUILD_ID}</code></p>
+          <p><strong>วิธีแก้:</strong></p>
+          <ul style="text-align:left; display:inline-block;">
+            <li>1. Deploy as Web App (ถ้ายังไม่มี)</li>
+            <li>2. Copy URL จากการ Deploy (ลงท้ายด้วย /exec)</li>
+            <li>3. เปิดหน้าผ่าน /exec URL เท่านั้น</li>
+            <li>4. ห้ามเปิดจาก /dev หรือ preview</li>
+          </ul>
+          <button onclick="location.reload()" style="background:#c62828;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;">รีเฟรชหน้า</button>
+        </div>
+      `;
+      loading.style.display = 'none';
+      return;
+    }
+    
+    fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    })
+    .then(response => {
+      console.log('[refresh] Response status:', response.status);
+      console.log('[refresh] Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('[refresh] Content-Type:', response.headers.get('content-type'));
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      // ✅ ตรวจสอบ content-type ก่อน res.json()
+      const contentType = response.headers.get('content-type') || '';
+      
+      if (!contentType.includes('application/json')) {
+        // ✅ ถ้าไม่ใช่ JSON ให้ res.text() และแสดงในกล่อง debug
+        return response.text().then(text => {
+          throw new Error('INVALID_CONTENT_TYPE: ' + contentType + '\n\nResponse text:\n' + text.substring(0, 500));
+        });
+      }
+      
+      return response.json();
+    })
+    .then(data => {
+      console.log('[refresh] Data received successfully:', data);
+      console.log('[refresh] Data type:', typeof data);
+      
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data format: received ' + typeof data);
+      }
+      
+      if (data.ok === false || data.error) {
+        throw new Error('API returned error: ' + (data.error || 'Unknown error'));
+      }
+      
+      // ✅ ถ้าเป็นปกติ render dashboard
+      const dashboardData = data.data || data.dashboardData || {};
+      _renderDashboard(dashboardData);
+      
+      const now = new Date().toLocaleTimeString('th-TH');
+      document.getElementById('lastUpdated').textContent = '🕐 ' + now;
+      
+    })
+    .catch(error => {
+      console.error('[refresh] Fetch error:', error);
+      console.error('[refresh] Error type:', error.constructor.name);
+      console.error('[refresh] Error message:', error.message);
+      console.error('[refresh] Error stack:', error.stack);
+      
+      const errorMsg = error.message || 'Unknown error';
+      const isContentTypeError = errorMsg.includes('INVALID_CONTENT_TYPE') || errorMsg.includes('Expected JSON');
+      
+      if (isContentTypeError) {
+        // ✅ แสดง error ถ้าได้ HTML แทน JSON
+        const errorDetails = errorMsg.split('\n\nResponse text:\n');
+        const responseText = errorDetails[1] ? errorDetails[1].substring(0, 300) : '';
+        
+        document.getElementById("dashboardContainer").innerHTML = `
+          <div style="text-align:center; padding:50px; background:#fff; border-radius:10px; margin:20px;">
+            <h2 style="color:#ef4444;">❌ ได้รับ HTML แทน JSON</h2>
+            <p style="color:#6b7280; margin:10px 0;"><strong>Content-Type:</strong> ${error.message.split(':')[1] || 'unknown'}</p>
+            <p style="color:#6b7280; margin:10px 0;"><strong>URL ที่เรียก:</strong> <code>${apiUrl}</code></p>
+            <p style="color:#6b7280; margin:10px 0;"><strong>BUILD_ID:</strong> ${BUILD_ID}</p>
+            ${responseText ? `<pre style="background:#f3f4f6; padding:10px; border-radius:4px; text-align:left; font-size:12px; max-height:200px; overflow:auto;">${responseText}</pre>` : ''}
+            <p><strong>สาเหตุที่ได้ HTML:</strong></p>
+            <ul style="text-align:left; display:inline-block;">
+              <li>• เรียก URL แบบ /dev preview (ต้องใช้ /exec)</li>
+              <li>• doGet() ส่งคืน HtmlService หากเป็น API mode</li>
+              <li>• Server error ส่ง HTML error page</li>
+              <li>• Session หมด / ต้อง login ใหม่</li>
+            </ul>
+            <button onclick="location.reload()" style="padding:10px 20px; background:#ef4444; color:#fff; border:none; border-radius:4px; cursor:pointer; margin-top:10px;">
+              🔃 รีเฟรชหน้า
+            </button>
+          </div>
+        `;
+      } else {
+        document.getElementById("dashboardContainer").innerHTML = `
+          <div style="text-align:center; padding:50px; background:#fff; border-radius:10px; margin:20px;">
+            <h2 style="color:#ef4444;">❌ เกิดข้อผิดพลาด</h2>
+            <p style="color:#6b7280; margin:10px 0;">⚠️ ${errorMsg}</p>
+            <p style="color:#6b7280; margin:10px 0;"><strong>URL:</strong> ${apiUrl}</p>
+            <p style="color:#6b7280; margin:10px 0;"><strong>BUILD_ID:</strong> ${BUILD_ID}</p>
+            <button onclick="refresh()" style="padding:10px 20px; background:#3b82f6; color:#fff; border:none; border-radius:4px; cursor:pointer; margin:5px;">
+              🔄 ลองอีกครั้ง
+            </button>
+            <button onclick="location.reload()" style="padding:10px 20px; background:#10b981; color:#fff; border:none; border-radius:4px; cursor:pointer; margin:5px;">
+              🔃 รีโหลดหน้า
+            </button>
+          </div>
+        `;
+      }
+      
+      loading.style.display = 'none';
+    });
+    .then(data => {
+      if (data === undefined) return; // ถ้าเป็น error แล้วจัดการไปแล้ว
+      
+      console.log('[refresh] Received data:', data);
+      
+      // ✅ Handle ok/error structure
+      if (data.ok) {
+        console.log('[refresh] Success - rendering data');
+        render(data.data);
+      } else {
+        console.error('[refresh] Server error:', data.error);
+        document.getElementById("dashboardContainer").innerHTML = `
+          <div style="text-align:center; padding:50px; background:#fff; border-radius:10px; margin:20px;">
+            <h2 style="color:#ef4444;">❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์</h2>
+            <p style="color:#6b7280; margin:10px 0;"><strong>ข้อความ:</strong> ${data.error || 'Unknown error'}</p>
+            <div style="background:#f3f4f6; padding:15px; border-radius:5px; margin:15px 0; text-align:left;">
+              <h4 style="color:#374151; margin:0 0 10px;">🔍 รายละเอียดข้อผิด:</h4>
+              <pre style="background:#1f2937; color:#f3f4f6; padding:10px; border-radius:3px; overflow:auto; font-size:12px; white-space:pre-wrap;">${JSON.stringify(data, null, 2)}</pre>
+            </div>
+            <button onclick="refresh()" style="padding:10px 20px; background:#3b82f6; color:#fff; border:none; border-radius:5px; cursor:pointer; margin:5px;">
+              🔄 รีเฟรชข้อมูล
+            </button>
+            <button onclick="location.reload()" style="padding:10px 20px; background:#10b981; color:#fff; border:none; border-radius:5px; cursor:pointer; margin:5px;">
+              🔃 รีโหลดหน้า
+            </button>
+          </div>
+        `;
+      }
+      
+      loading.style.display = 'none';
+    })
+    .catch(err => {
+      console.error('[refresh] Fetch error:', err);
+      document.getElementById("dashboardContainer").innerHTML = `
+        <div style="text-align:center; padding:50px; background:#fff; border-radius:10px; margin:20px;">
+          <h2 style="color:#ef4444;">❌ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้</h2>
+          <p style="color:#6b7280; margin:10px 0;"><strong>ข้อความ:</strong> ${err.message}</p>
+          <div style="background:#f3f4f6; padding:15px; border-radius:5px; margin:15px 0; text-align:left;">
+            <h4 style="color:#374151; margin:0 0 10px;">🔍 รายละเอียดข้อผิด:</h4>
+            <pre style="background:#1f2937; color:#f3f4f6; padding:10px; border-radius:3px; overflow:auto; font-size:12px; white-space:pre-wrap;">${err.stack || err.message}</pre>
+          </div>
+          <p style="color:#9ca3af; font-size:0.9em;">URL: ${apiUrl}</p>
+          <p style="color:#9ca3af; font-size:0.9em;">WEBAPP_URL: ${WEBAPP_URL}</p>
+          <button onclick="refresh()" style="padding:10px 20px; background:#3b82f6; color:#fff; border:none; border-radius:5px; cursor:pointer; margin:5px;">
+            🔄 รีเฟรชข้อมูล
+          </button>
+          <button onclick="location.reload()" style="padding:10px 20px; background:#10b981; color:#fff; border:none; border-radius:5px; cursor:pointer; margin:5px;">
+            🔃 รีโหลดหน้า
+          </button>
+        </div>
+      `;
+      loading.style.display = 'none';
+    });
   }
 
 

@@ -1,9 +1,9 @@
 /** =====================[ DESIGN DASHBOARD ]===================== */
 /** ฟังก์ชันสำหรับ Design Dashboard โดยเฉพาะ */
 
-/** ===== IMPORT BUILD ID ===== */
-// ✅ ใช้ BUILD_ID โดยตรงจาก Build.gs
-const BUILD_ID = 'GD_v1_BUILD';
+/** ===== IMPORT CONFIG ===== */
+// ✅ ใช้ CONFIG จาก Config.gs ผ่าน globalThis
+// ห้ามประกาศ const BUILD_ID ที่ top-level
 
 /** ===== HELPER FUNCTIONS ===== */
 
@@ -26,18 +26,17 @@ function _parseDateSafe_(dateValue) {
 
 /** ตรวจสอบว่าเป็นแผนก Design หรือไม่ */
 function _isDesignDept_(department) {
-  const designDepts = ['Design', 'DS', 'Design Department', 'แผนก Design'];
-  return designDepts.includes(String(department || '').trim());
+  return CONFIG.DESIGN_DEPARTMENTS.includes(String(department || '').trim());
 }
 
 /** อ่านข้อมูล Availability จาก Resource_Availability */
 function _readAvailabilityMap_() {
   try {
-    const ss = SpreadsheetApp.openById('1_HEbYwvcGzMU0QBCMLDILQWcEg9UhfeSM69jUVZGJFo');
-    const avSheet = ss.getSheetByName('Resource_Availability');
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const avSheet = ss.getSheetByName(CONFIG.AV_SHEET_NAME);
     
     if (!avSheet) {
-      Logger.log('_readAvailabilityMap_: Sheet Resource_Availability not found');
+      Logger.log('_readAvailabilityMap_: Sheet ' + CONFIG.AV_SHEET_NAME + ' not found');
       return {};
     }
     
@@ -87,6 +86,10 @@ function _colIndex_(headers, columnName) {
  */
 function getDesignDataDS_() {
   Logger.log('=== [getDesignDataDS_] START ===');
+  
+  // ✅ ใช้ฟังก์ชันแทนการอ่านตรงๆ
+  const BUILD_ID = getBuildId();
+  
   Logger.log('[getDesignDataDS_] BUILD_ID: ' + BUILD_ID);
   Logger.log('[getDesignDataDS_] SIGNATURE: sig=GD_DS_V1');
   
@@ -156,7 +159,7 @@ function getDesignDataDS_() {
     return {
       __error: true,
       __signature: 'SIG_GETDESIGNDATA_DS_ERROR',
-      __buildId: BUILD_ID,
+      __buildId: getBuildId(),
       message: e.message || 'Unknown error',
       stack: e.stack || '',
       timestamp: new Date().toISOString()
@@ -169,11 +172,11 @@ function getDesignDataDS_() {
 /** อ่านข้อมูลจาก Logs sheet */
 function _readLogsSheet_() {
   try {
-    const ss = SpreadsheetApp.openById('1_HEbYwvcGzMU0QBCMLDILQWcEg9UhfeSM69jUVZGJFo');
-    const sheet = ss.getSheetByName('Logs');
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
     
     if (!sheet) {
-      Logger.log('_readLogsSheet_: Sheet Logs not found');
+      Logger.log('_readLogsSheet_: Sheet ' + CONFIG.SHEET_NAME + ' not found');
       return [];
     }
     
@@ -335,7 +338,7 @@ function _calculateMetricsByType_(groupedJobs, finishedJobs) {
       },
       finishedToday: {
         count: finishedToday.length,
-        jobs: finishedToday.map(j => j.Barcode || j['เลขที่'] || '').filter(Boolean)
+        jobs: finishedJobs.map(j => j.Barcode || j['เลขที่'] || '').filter(Boolean)
       },
       overdue3d: {
         count: overdue3d.length,
